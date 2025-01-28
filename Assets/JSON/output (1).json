@@ -1,0 +1,35 @@
+[
+    {
+        "name": "Original",
+        "text": "Original",
+        "position": {
+            "x": 0,
+            "y": 0
+        },
+        "width": 2550,
+        "height": 3300,
+        "direction": 0
+    },
+    {
+        "name": "Rectangle0",
+        "text": "table",
+        "position": {
+            "x": 297,
+            "y": 583
+        },
+        "width": 934,
+        "height": 215,
+        "direction": 2
+    },
+    {
+        "name": "Rectangle1",
+        "text": "cupboard",
+        "position": {
+            "x": 1743,
+            "y": 298
+        },
+        "width": 367,
+        "height": 496,
+        "direction": 3
+    }
+]

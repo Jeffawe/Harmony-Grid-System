@@ -1,0 +1,29 @@
+{
+    "Original": {
+        "name": "Original",
+        "text": "Original",
+        "position": "Original",
+        "width": 2550,
+        "height": 3300
+    },
+    "Shape0": {
+        "name": "Rectangle0",
+        "text": "table",
+        "position": [
+            297,
+            583
+        ],
+        "width": 934,
+        "height": 215
+    },
+    "Shape1": {
+        "name": "Rectangle1",
+        "text": "cupboard",
+        "position": [
+            1743,
+            298
+        ],
+        "width": 367,
+        "height": 496
+    }
+}
