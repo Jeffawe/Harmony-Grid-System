@@ -44,11 +44,6 @@ This is a Unity-based 3D grid system that allows users to create a customizable 
 
 You can customize the grid's size, shape, and placement functionality by modifying the `GridManager` and other related scripts. The system is flexible and allows for easy integration into different game types or scenes.
 
-## Notes
-
-- The system is built to support both **editor-based object placement** (for ease of design and testing) and **runtime grid placement**.
-- Ensure that any meshes you want to place on the grid are converted to prefabs before using them in the scene.
-
 ## License
 
 This project is licensed under the MIT License – see the [LICENSE](LICENSE) file for details.
