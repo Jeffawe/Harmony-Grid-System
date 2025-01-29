@@ -4,8 +4,31 @@ using UnityEngine;
 
 namespace HarmonyGridSystem.Objects
 {
+    [System.Serializable]
+    public class SOValues
+    {
+        public int width;
+        public int height;
+        public string nameString;
+        public string VisualPath;
+        public string PrefabPath;
+        public PlacedObjectType placedObjectType;
+
+        public SOValues (int width, int height, string nameString, string visualPath, string prefabPath, PlacedObjectType placedObjectType)
+        {
+            this.width = width;
+            this.height = height;
+            this.nameString = nameString;
+            VisualPath = visualPath;
+            PrefabPath = prefabPath;
+            this.placedObjectType = placedObjectType;
+        }
+    }
+
+
     public class ChildHolder : MonoBehaviour
     {
+        public SOValues sOValues;
         [SerializeField] PlacedObjectType placedObjectType;
         [SerializeField] PlacedObjectSO placedObjectSO;
         [SerializeField] GameObject child;
@@ -23,6 +46,16 @@ namespace HarmonyGridSystem.Objects
             {
                 child.AddComponent<T>();
             }
+        }
+
+        public void SetSOValues(int width, int height, string nameString, string visualPath, string prefabPath, PlacedObjectType placedObjectType)
+        {
+            sOValues.width = width;
+            sOValues.height = height;
+            sOValues.nameString = nameString;
+            sOValues.VisualPath = visualPath;
+            sOValues.PrefabPath = prefabPath;
+            sOValues.placedObjectType = placedObjectType;
         }
 
         public Vector3 GetChildLocation()
@@ -58,6 +91,12 @@ namespace HarmonyGridSystem.Objects
             {
                 item.SetActive(false);
             }
+        }
+
+        void OnDrawGizmos()
+        {
+            Gizmos.color = Color.yellow;
+            Gizmos.DrawWireSphere(transform.position, 0.5f);
         }
     }
 }

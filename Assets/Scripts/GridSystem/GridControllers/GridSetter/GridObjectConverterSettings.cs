@@ -13,18 +13,21 @@ namespace HarmonyGridSystem.Utils
         public int gridCellSize = 1;
         public PivotPoint pivotPoint = PivotPoint.Center;
         public string prefabSavePath = "Assets/Prefabs/GridObjects";
+        public bool generatePrefab;
+        public bool generateScriptableObject;
 
         [Header("Visual Settings")]
         public bool createVisualPrefab = true;
         public Material visualMaterial;
-        public bool createGridVisualization = true;
+        public bool createGridVisualization = false;
         public float yOffset = 0.1f;
+        public GameObject cubePrefab;
 
         [Header("Type Specific")]
         public int edgeLayer = 6;
         public int looseObjectLayer = 7;
+        [Tooltip("The size of the edge place holders of the floor. Makes it easier to place the walls for the floor. Don't set the X layer to above 1 and the y layer to above 2")]
         public Vector3 edgeSize = new Vector3(0.5f, 2, 0);
-        public float wallThickness = 0.2f;
 
         [HideInInspector] public GridValidationResults validationResults = new GridValidationResults();
 

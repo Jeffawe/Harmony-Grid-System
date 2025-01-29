@@ -2,7 +2,6 @@ using UnityEditor;
 using UnityEngine;
 using System.IO;
 using System.Collections.Generic;
-using System.Linq;
 using HarmonyGridSystem.Grid;
 using HarmonyGridSystem.Objects;
 
@@ -11,13 +10,16 @@ namespace HarmonyGridSystem.Utils
     public class GridObjectConverterWindow : EditorWindow
     {
         private const string SETTINGS_PATH = "Assets/Editor/GridObjectConverterSettings.asset";
+        private const string WINDOW_TITLE = "Grid Converter";
+        private const float MIN_WINDOW_WIDTH = 400f;
+        private const float MIN_WINDOW_HEIGHT = 500f;
 
-        [MenuItem("Tools/Harmony Grid System/Convert Objects")]
+        [MenuItem("Tools/Harmony Grid System/Convert Objects", priority = 100)]
         public static void ShowWindow()
         {
             var window = GetWindow<GridObjectConverterWindow>();
-            window.titleContent = new GUIContent("Grid Converter");
-            window.minSize = new Vector2(400, 500);
+            window.titleContent = new GUIContent(WINDOW_TITLE);
+            window.minSize = new Vector2(MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT);
         }
 
         #region Private Variables
@@ -119,12 +121,6 @@ namespace HarmonyGridSystem.Utils
             var parent = CreateBaseObject(target, name, new List<System.Type> { typeof(PlacedObject) });
             var bounds = GetRenderBounds(target);
 
-            // Grid visualization
-            if (_settings.createGridVisualization)
-            {
-                CreateGridCubes(parent.transform, bounds);
-            }
-
             // Collider setup
             var collider = parent.AddComponent<BoxCollider>();
             collider.center = bounds.center;
@@ -143,37 +139,12 @@ namespace HarmonyGridSystem.Utils
 
             // Edge markers
             CreateEdgePositions(parent.transform, bounds);
-
-            // Scaling
-            target.transform.localScale = new Vector3(
-                _settings.gridCellSize / Mathf.RoundToInt(bounds.size.x),
-                1f,
-                _settings.gridCellSize / Mathf.RoundToInt(bounds.size.z)
-            );
-
-            // Floor specific components
-            var floor = parent.GetComponent<FloorPlacedObject>();
-            //floor.SetEdgeSize(_settings.edgeSize);
         }
 
         private void CreateWallObject(GameObject target, string name)
         {
-            var parent = CreateBaseObject(target, name, new List<System.Type> { typeof(FloorEdgeObject) });
+            var parent = CreateBaseObject(target, name, new List<System.Type> { typeof(FloorEdgeObject) }, true);
             var bounds = GetRenderBounds(target);
-
-            // Layer setup
-            SetLayerRecursively(parent, _settings.edgeLayer);
-
-            // Wall scaling
-            target.transform.localScale = new Vector3(
-                _settings.gridCellSize / Mathf.RoundToInt(bounds.size.x),
-                1f,
-                1f
-            );
-
-            // Wall specific components
-            var wall = parent.GetComponent<FloorEdgeObject>();
-            //wall.SetWallThickness(_settings.wallThickness);
         }
 
         private void CreateLooseObject(GameObject target, string name)
@@ -182,30 +153,77 @@ namespace HarmonyGridSystem.Utils
             SetLayerRecursively(parent, _settings.looseObjectLayer);
         }
 
-        private GameObject CreateBaseObject(GameObject target, string name, List<System.Type> components)
+        private GameObject CreateBaseObject(GameObject target, string name, List<System.Type> components, bool isWall = false)
         {
             var parent = new GameObject($"{name}_{_settings.objectType}");
-            parent.transform.position = CalculatePivotPosition(target);
+            var bounds = GetRenderBounds(target);
+            Debug.Log(bounds.size);
+            int width = Mathf.CeilToInt(bounds.size.x);
+            int depth = Mathf.CeilToInt(bounds.size.z);
+            int gridCellSize = _settings.gridCellSize;
+            int occupiedGridCellsX = (Mathf.RoundToInt(width / gridCellSize) == 0) ? 1 : Mathf.RoundToInt(width / gridCellSize);
+            int occupiedGridCellsZ = (Mathf.RoundToInt(depth / gridCellSize) == 0) ? 1 : Mathf.RoundToInt(depth / gridCellSize);
 
-            // Essential part
-            var essential = Instantiate(target, parent.transform);
-            essential.name = "Essential";
-            essential.transform.localPosition = Vector3.zero;
+            Vector3 offset = new Vector3(parent.transform.localScale.x / 2, 0, parent.transform.localScale.z / 2);
+
+            // Calculate grid-based position
+            float positionX = isWall ? 0 : gridCellSize * (occupiedGridCellsX - 1);
+            float positionZ = isWall ? 0 : gridCellSize * (occupiedGridCellsZ - 1);
+
+            // Calculate pivot point offset
+            Vector3 pivotPoint = SetPivotPoint(_settings.pivotPoint, occupiedGridCellsX, occupiedGridCellsZ, width, depth);
+
+            // Setup child holder
+            ChildHolder childHolder = parent.AddComponent<ChildHolder>();
+            childHolder.SetChild(target);
+            childHolder.SetPlacedObjectType(_settings.objectType);
+
+            target.transform.position = target.transform.position + new Vector3(positionX / 2, 0 + _settings.yOffset, positionZ / 2);
+            parent.transform.position = target.transform.position + pivotPoint - offset;
+            target.transform.SetParent(parent.transform);
 
             // Visual part
             if (_settings.createVisualPrefab)
             {
                 var visual = Instantiate(target, parent.transform);
                 visual.name = "Visual";
-                visual.transform.localPosition = Vector3.zero;
+                visual.transform.localPosition = -pivotPoint + offset;  // Use same offset as target
                 visual.GetComponent<Renderer>().sharedMaterial = _settings.visualMaterial;
             }
+
+            if (_settings.createGridVisualization)
+            {
+                CreateGridCubes(parent.transform, bounds);
+            }
+
+            PlacedObjectSO objectSO = null;
+            if (_settings.generateScriptableObject)
+            {
+                objectSO = GenerateSO(parent, new Vector2Int(occupiedGridCellsX, occupiedGridCellsZ));
+            }
+            else
+            {
+                childHolder.SetSOValues(width, depth, target.name, $"{_settings.prefabSavePath}/Visuals", _settings.prefabSavePath, _settings.objectType);
+            }
+
+            if (_settings.generatePrefab)
+            {
+                Utilities.CreatePrefab(parent, _settings.prefabSavePath, parent.name, true);
+                if (objectSO) objectSO.prefab = parent.transform;
+            }
+
+            if(objectSO) EditorUtility.SetDirty(objectSO);
+
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
 
             // Add components
             components.ForEach(c => parent.AddComponent(c));
 
             return parent;
         }
+
+
         #endregion
 
         #region Helper Methods
@@ -219,18 +237,90 @@ namespace HarmonyGridSystem.Utils
             return bounds;
         }
 
-        private Vector3 CalculatePivotPosition(GameObject target)
+        private Bounds GetMeshBounds(GameObject target)
         {
-            var bounds = GetRenderBounds(target);
-            return _settings.pivotPoint switch
-            {
-                PivotPoint.BottomLeft => new Vector3(bounds.min.x, 0, bounds.min.z),
-                PivotPoint.BottomRight => new Vector3(bounds.max.x, 0, bounds.min.z),
-                PivotPoint.TopLeft => new Vector3(bounds.min.x, 0, bounds.max.z),
-                PivotPoint.TopRight => new Vector3(bounds.max.x, 0, bounds.max.z),
-                _ => bounds.center
-            };
+            Mesh meshBounds = target.GetComponent<MeshFilter>().sharedMesh;
+            return meshBounds.bounds;
+            
         }
+
+        private PlacedObjectSO GenerateSO(GameObject target, Vector2Int occupiedGridCells)
+        {
+            PlacedObjectSO building = Utilities.CreateNewScriptableObject<PlacedObjectSO>(target.name);
+
+            building.width = occupiedGridCells.x;
+            building.height = occupiedGridCells.y;
+            building.nameString = target.name;
+            building.PrefabPath = _settings.prefabSavePath;
+            building.VisualPath = $"{_settings.prefabSavePath}/Visuals";
+            building.placedObjectType = _settings.objectType;
+            Utilities.CreatePrefab(target, _settings.prefabSavePath, target.name, true);
+
+            return building;
+        }
+
+        private Vector3 SetPivotPoint(PivotPoint pivotPoint, int occupiedGridCellsX, int occupiedGridCellsZ, float width = 0, float depth = 0)
+        {
+            int gridCellSize = _settings.gridCellSize;
+            Vector3 BottomRight = new Vector3(-gridCellSize / 2, 0, -gridCellSize / 2);
+            Vector3 BottomLeft = new Vector3(-gridCellSize / 2, 0, gridCellSize * occupiedGridCellsZ - (gridCellSize / 2));
+            Vector3 TopLeft = new Vector3(gridCellSize * occupiedGridCellsX - (gridCellSize / 2), 0, gridCellSize * occupiedGridCellsZ - (gridCellSize / 2));
+            Vector3 TopRight = new Vector3(gridCellSize * occupiedGridCellsX - (gridCellSize / 2), 0, -gridCellSize / 2);
+
+            /*
+            BottomRight = new Vector3(-width / 2, 0, -depth / 2);
+            BottomLeft = new Vector3(-width / 2, 0, depth * occupiedGridCellsZ - (depth / 2));
+            TopLeft = new Vector3(width * occupiedGridCellsX - (width / 2), 0, depth * occupiedGridCellsZ - (depth / 2));
+            TopRight = new Vector3(width * occupiedGridCellsX - (width / 2), 0, -depth / 2);
+            */
+
+            switch (pivotPoint)
+            {
+                case PivotPoint.Center:
+                    return Vector3.zero;
+
+                case PivotPoint.BottomLeft:
+                    return BottomLeft;
+
+                case PivotPoint.BottomRight:
+                    return BottomRight;
+
+                case PivotPoint.TopLeft:
+                    return TopLeft;
+
+                case PivotPoint.TopRight:
+                    return TopRight;
+
+                default:
+                    return Vector3.zero;
+            }
+        }
+
+        //private void CreateFloorCubeGrids(GameObject target, Transform Parent, int occupiedGridCellsX, int occupiedGridCellsZ)
+        //{
+        //    List<GameObject> list = new();
+
+        //    //Creates the Ground Grids for the Mesh
+        //    for (int x = 0; x < occupiedGridCellsX; x++)
+        //    {
+        //        for (int z = 0; z < occupiedGridCellsZ; z++)
+        //        {
+        //            Vector3 cubePosition = new Vector3(x, 0, z) * _settings.gridCellSize;
+        //            GameObject cube = Instantiate(_settings.cubePrefab);
+
+        //            cube.transform.localScale = new Vector3(_settings.gridCellSize, 0.1f, _settings.gridCellSize);
+        //            cube.transform.position = target.transform.position + cubePosition;
+        //            cube.transform.forward = target.transform.forward;
+        //            cube.transform.SetParent(Parent.transform);
+        //            list.Add(cube);
+        //        }
+        //    }
+
+        //    ChildHolder childHolder = Parent.GetComponent<ChildHolder>();
+        //    childHolder.CreateCube(list);
+        //    childHolder.TurnOffCubes();
+
+        //}
 
         private void CreateGridCubes(Transform parent, Bounds bounds)
         {
@@ -263,17 +353,53 @@ namespace HarmonyGridSystem.Utils
         private void CreateEdgePositions(Transform parent, Bounds bounds)
         {
             var edges = new GameObject("EdgePositions").transform;
+            List<FloorEdgePosition> edgePositionsList = new List<FloorEdgePosition>();
             edges.SetParent(parent);
 
-            float[] rotations = { 0, 90, 180, 270 };
+            float currentRot = 0;
+            float currentX = -bounds.size.x;
+            float currentZ = bounds.size.z + 1.5f;
+
             for (int i = 0; i < 4; i++)
             {
-                var edge = new GameObject($"Edge_{((EdgeType)i).ToString()}").transform;
-                edge.SetParent(edges);
-                edge.localRotation = Quaternion.Euler(0, rotations[i], 0);
-                edge.localPosition = Vector3.zero;
-                edge.gameObject.AddComponent<FloorEdgePosition>().SetEdge((EdgeType)i);
+                var edge = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                edge.name = $"Edge_{((EdgeType)i).ToString()}";
+                edge.GetComponent<MeshRenderer>().enabled = false;
+                edge.transform.SetParent(edges);
+                edge.transform.rotation = Quaternion.Euler(new Vector3(0, currentRot, 0));
+                edge.layer = _settings.edgeLayer;
+
+                // Position calculation
+                currentX += bounds.size.x / 2;
+                currentZ -= bounds.size.z / 2;
+                float x = (currentRot == 0 || currentRot == 180) ? currentX : 0;
+                float z = (currentRot == 90 || currentRot == 270) ? currentZ : 0;
+                edge.transform.localPosition = new Vector3(x, 0f, z);
+
+                // Scale
+                edge.transform.localScale = new Vector3(_settings.edgeSize.x, _settings.edgeSize.y, bounds.size.z);
+
+                // Add component and set edge type
+                var floorEdgePosition = edge.AddComponent<FloorEdgePosition>();
+                floorEdgePosition.SetEdge((EdgeType)i);
+                edgePositionsList.Add(floorEdgePosition);
+
+                currentRot += 90;
             }
+
+            // Scale adjustment for the parent object (if needed)
+            if (parent.GetComponent<MeshFilter>() != null)
+            {
+                var mesh = parent.GetComponent<MeshFilter>().sharedMesh;
+                parent.localScale = new Vector3(
+                    _settings.gridCellSize / Mathf.RoundToInt(mesh.bounds.size.x),
+                    parent.localScale.y,
+                    _settings.gridCellSize / Mathf.RoundToInt(mesh.bounds.size.z)
+                );
+            }
+
+            FloorPlacedObject floorPlacedObject = parent.GetComponent<FloorPlacedObject>();
+            floorPlacedObject.SetEdgePositions(edgePositionsList[0], edgePositionsList[2], edgePositionsList[1], edgePositionsList[3]);
         }
 
         private void SetLayerRecursively(GameObject obj, int layer)
@@ -294,11 +420,19 @@ namespace HarmonyGridSystem.Utils
 
         private void DrawMainSettings()
         {
-            EditorGUILayout.LabelField("Core Settings", EditorStyles.boldLabel);
             EditorGUILayout.PropertyField(_serializedObject.FindProperty("objectType"));
             EditorGUILayout.PropertyField(_serializedObject.FindProperty("gridCellSize"));
             EditorGUILayout.PropertyField(_serializedObject.FindProperty("pivotPoint"));
-            EditorGUILayout.PropertyField(_serializedObject.FindProperty("prefabSavePath"));
+
+            var generatePrefabProp = _serializedObject.FindProperty("generatePrefab");
+            EditorGUILayout.PropertyField(generatePrefabProp);
+
+            if (generatePrefabProp.boolValue)
+            {
+                EditorGUILayout.PropertyField(_serializedObject.FindProperty("prefabSavePath"));
+            }
+
+            EditorGUILayout.PropertyField(_serializedObject.FindProperty("generateScriptableObject"));
             EditorGUILayout.Space();
         }
 
@@ -310,7 +444,6 @@ namespace HarmonyGridSystem.Utils
             {
                 case PlacedObjectType.WallObject:
                     EditorGUILayout.PropertyField(_serializedObject.FindProperty("edgeLayer"));
-                    EditorGUILayout.PropertyField(_serializedObject.FindProperty("wallThickness"));
                     break;
 
                 case PlacedObjectType.FloorObject:
@@ -323,10 +456,26 @@ namespace HarmonyGridSystem.Utils
             }
 
             EditorGUILayout.Space();
-            EditorGUILayout.PropertyField(_serializedObject.FindProperty("createVisualPrefab"));
-            EditorGUILayout.PropertyField(_serializedObject.FindProperty("visualMaterial"));
-            EditorGUILayout.PropertyField(_serializedObject.FindProperty("createGridVisualization"));
+
+            var generateVisualPrefabProp = _serializedObject.FindProperty("createVisualPrefab");
+            EditorGUILayout.PropertyField(generateVisualPrefabProp);
+
+            if (generateVisualPrefabProp.boolValue)
+            {
+                EditorGUILayout.PropertyField(_serializedObject.FindProperty("visualMaterial"));
+            }
+
             EditorGUILayout.PropertyField(_serializedObject.FindProperty("yOffset"));
+
+
+            var generatePrefabProp = _serializedObject.FindProperty("createGridVisualization");
+            EditorGUILayout.PropertyField(generatePrefabProp);
+
+            if (generatePrefabProp.boolValue)
+            {
+                EditorGUILayout.PropertyField(_serializedObject.FindProperty("cubePrefab"));
+            }
+
             EditorGUILayout.Space();
         }
 
