@@ -255,7 +255,7 @@ namespace HarmonyGridSystem.Grid
 
         #region Object Placement
         /// <summary>
-        /// Chnage the current Object that it to place
+        /// Change the current Object that it to place
         /// </summary>
         /// <param name="currentIndex">A reference to the current index of the object that it sto be placed</param>
         public void ChangeObject(int currentIndex = int.MaxValue)
@@ -475,7 +475,7 @@ namespace HarmonyGridSystem.Grid
         }
 
         /// <summary>
-        /// CChecks if the Grid Object is empty
+        /// Checks if the Grid Object is empty
         /// </summary>
         /// <param name="gridPositions">The List of positions to check</param>
         /// <returns>true if it is empty</returns>
@@ -483,14 +483,89 @@ namespace HarmonyGridSystem.Grid
         {
             foreach (Vector2Int position in gridPositions)
             {
-                if (!grid.GetGridObject(position.x, position.y).CanBuild(placedObjectType))
+                var gridObject = grid.GetGridObject(position.x, position.y);
+
+                // If the grid cell is occupied or cannot accept the object type, return false
+                if (!gridObject.CanBuild(placedObjectType))
+                {
+                    return false;
+                }
+
+                // Check constraints
+                if (!CheckPlacementConstraints(position, placedObjectSO))
                 {
                     return false;
                 }
             }
 
+
             return true;
         }
+
+        /// <summary>
+        /// Checks if the placement of an object at a given position respects the placement constraints
+        /// relative to its adjacent grid positions (left, right, up, down).
+        /// </summary>
+        /// <param name="position">The position where the object is being placed.</param>
+        /// <param name="placedObjectSO">The ScriptableObject containing the details of the object being placed.</param>
+        /// <returns>True if the placement respects all constraints; false if any constraint is violated.</returns>
+        private bool CheckPlacementConstraints(Vector2Int position, PlacedObjectSO placedObjectSO)
+        {
+            Vector2Int[] adjacentPositions = new Vector2Int[]
+            {
+                new Vector2Int(position.x + 1, position.y), // Right
+                new Vector2Int(position.x - 1, position.y), // Left
+                new Vector2Int(position.x, position.y + 1), // Up
+                new Vector2Int(position.x, position.y - 1)  // Down
+            };
+
+            foreach (var adjacentPosition in adjacentPositions)
+            {
+                if (!grid.B_ValidateGridPosition(adjacentPosition)) continue; // Skip if out of bounds
+
+                var adjacentObject = grid.GetGridObject(adjacentPosition.x, adjacentPosition.y)?.GetPlacedObject();
+                if (adjacentObject == null) continue; // If empty, no constraint issues
+
+                // Check if this object violates the constraints of the new object
+                if (!CheckPlacementConstraintLocal(placedObjectSO, adjacentObject.PlacedObjectSOValue))
+                {
+                    return false; // Constraint violated
+                }
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Checks if the placement of an object respects the constraints relative to an adjacent object.
+        /// </summary>
+        /// <param name="objectToPlace">The object that is being placed.</param>
+        /// <param name="adjacentObject">The existing adjacent object to check constraints against.</param>
+        /// <returns>True if the placement is valid, false otherwise.</returns>
+        private bool CheckPlacementConstraintLocal(PlacedObjectSO objectToPlace, PlacedObjectSO adjacentObject)
+        {
+            if (objectToPlace == null || adjacentObject == null) return false;
+
+            if (!objectToPlace.HasConstraints) return false;
+
+            if (!adjacentObject.HasConstraints) return false;
+
+            // Check ALL rules from BOTH objects
+            foreach (var rule in objectToPlace.constraintRules)
+            {
+                if (!rule.ValidatePlacement(objectToPlace, adjacentObject))
+                    return false; // Fail if any rule is not met
+            }
+
+            foreach (var rule in adjacentObject.constraintRules)
+            {
+                if (!rule.ValidatePlacement(adjacentObject, objectToPlace))
+                    return false;
+            }
+
+            return true; // Placement is valid if all rules pass
+        }
+
 
         #endregion
 

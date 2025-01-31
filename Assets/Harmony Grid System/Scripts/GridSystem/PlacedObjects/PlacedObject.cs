@@ -14,6 +14,7 @@ namespace HarmonyGridSystem.Objects
 
         public int Width => gridWidth;
         public int Height => gridHeight;
+        public PlacedObjectSO PlacedObjectSOValue => placedObjectSO;
 
         public void Initialize(int width, int height)
         {

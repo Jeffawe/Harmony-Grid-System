@@ -9,11 +9,20 @@ namespace HarmonyGridSystem.Objects
     public class PlacedObjectSO : ScriptableObject
     {
         public string nameString;
+        public string constraintGroupName;
         public string PrefabPath;
         public string VisualPath;
         public Transform prefab;
         public Transform visual;
         public PlacedObjectType placedObjectType;
+
+        public HashSet<string> allowedAdjacentObjects = new();
+        public List<ConstraintRuleSO> constraintRules;
+
+        private int _constraintGroupId = -1;
+        public int ConstraintGroupId => _constraintGroupId == -1 ? (_constraintGroupId = ConstraintManager.GetOrCreateGroupId(constraintGroupName)) : _constraintGroupId;
+
+        public bool HasConstraints => constraintRules is { Count: > 0 };
 
         public bool hasVisual { get; set; }
 
@@ -49,6 +58,7 @@ namespace HarmonyGridSystem.Objects
 
         public int width;
         public int height;
+
 
         public List<Vector2Int> GetGridPosition(Vector2Int offset, Dir dir)
         {
@@ -134,6 +144,7 @@ namespace HarmonyGridSystem.Objects
             Up,
             Right
         }
-
     }
+
+
 }

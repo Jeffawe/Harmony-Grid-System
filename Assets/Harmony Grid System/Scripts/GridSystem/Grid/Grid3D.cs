@@ -216,6 +216,17 @@ namespace HarmonyGridSystem.Grid
             );
         }
 
+        /// <summary>
+        /// Checks if the given Grid Position is within valid grid boundaries.
+        /// </summary>
+        /// <param name="gridPosition">The grid position to check.</param>
+        /// <returns>True if the position is within bounds, false otherwise.</returns>
+        public bool B_ValidateGridPosition(Vector2Int gridPosition)
+        {
+            return gridPosition.x >= 0 && gridPosition.x < width &&
+                   gridPosition.y >= 0 && gridPosition.y < breadth;
+        }
+
         public void HideGrid(bool hide)
         {
             showDebug = !hide;
@@ -265,7 +276,7 @@ namespace HarmonyGridSystem.Grid
         public DebugOptions(bool showDebug, bool showText, Color lineColor, Color textColor, int textSize, Transform parent, bool useLineRenderer, Material mat)
         {
             this.showDebug = showDebug;
-            this.showText = showText;   
+            this.showText = showText;
             this.lineColor = lineColor;
             this.textColor = textColor;
             this.textSize = textSize;
