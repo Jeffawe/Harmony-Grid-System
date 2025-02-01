@@ -4,6 +4,8 @@ using System.IO;
 using System.Collections.Generic;
 using HarmonyGridSystem.Grid;
 using HarmonyGridSystem.Objects;
+using NUnit.Framework;
+using UnityEditor.Rendering;
 
 namespace HarmonyGridSystem.Utils
 {
@@ -118,46 +120,58 @@ namespace HarmonyGridSystem.Utils
         #region Object Creation Methods
         private void CreateGridObject(GameObject target, string name)
         {
-            var parent = CreateBaseObject(target, name, new List<System.Type> { typeof(PlacedObject) });
+            var parent = CreateBaseObject(target, name, new List<System.Type> { typeof(PlacedObject) }, out PlacedObjectSO placedObjectSO);
             var bounds = GetRenderBounds(target);
 
-            // Collider setup
-            var collider = parent.AddComponent<BoxCollider>();
-            collider.center = bounds.center;
-            collider.size = bounds.size;
-
-            parent.GetComponent<PlacedObject>().Initialize(
-                Mathf.CeilToInt(bounds.size.x / _settings.gridCellSize),
-                Mathf.CeilToInt(bounds.size.z / _settings.gridCellSize)
-            );
+            GeneratePrefab(parent.gameObject, placedObjectSO);
         }
 
         private void CreateFloorObject(GameObject target, string name)
         {
-            var parent = CreateBaseObject(target, name, new List<System.Type> { typeof(FloorPlacedObject) });
+            var parent = CreateBaseObject(target, name, new List<System.Type> { typeof(FloorPlacedObject) }, out PlacedObjectSO placedObjectSO);
             var bounds = GetRenderBounds(target);
 
             // Edge markers
-            CreateEdgePositions(parent.transform, bounds);
+            CreateEdgePositions(parent, bounds);
+            GeneratePrefab(parent.gameObject, placedObjectSO);
         }
 
         private void CreateWallObject(GameObject target, string name)
         {
-            var parent = CreateBaseObject(target, name, new List<System.Type> { typeof(FloorEdgeObject) }, true);
+            var parent = CreateBaseObject(target, name, new List<System.Type> { typeof(FloorEdgeObject) }, out PlacedObjectSO placedObjectSO, true);
             var bounds = GetRenderBounds(target);
+
+            GeneratePrefab(parent.gameObject, placedObjectSO);
         }
 
         private void CreateLooseObject(GameObject target, string name)
         {
-            var parent = CreateBaseObject(target, name, new List<System.Type> { typeof(PlacedObject) });
-            SetLayerRecursively(parent, _settings.looseObjectLayer);
+            var parent = CreateBaseObject(target, name, new List<System.Type> { typeof(PlacedObject) }, out PlacedObjectSO placedObjectSO);
+            SetLayerRecursively(parent.gameObject, _settings.looseObjectLayer);
+
+            GeneratePrefab(parent.gameObject, placedObjectSO);
         }
 
-        private GameObject CreateBaseObject(GameObject target, string name, List<System.Type> components, bool isWall = false)
+        private void GeneratePrefab(GameObject parent, PlacedObjectSO objectSO)
+        {
+            if (_settings.generatePrefab)
+            {
+                Utilities.CreatePrefab(parent, _settings.prefabSavePath, parent.name, true);
+                if (objectSO) objectSO.prefab = parent.transform;
+            }
+
+            if (objectSO) EditorUtility.SetDirty(objectSO);
+
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+        }
+
+        private Transform CreateBaseObject(GameObject target, string name, List<System.Type> components, out PlacedObjectSO placedObject, bool isWall = false)
         {
             var parent = new GameObject($"{name}_{_settings.objectType}");
+            parent.transform.position = Vector3.zero;
+            parent.transform.rotation = Quaternion.identity;
             var bounds = GetRenderBounds(target);
-            Debug.Log(bounds.size);
             int width = Mathf.CeilToInt(bounds.size.x);
             int depth = Mathf.CeilToInt(bounds.size.z);
             int gridCellSize = _settings.gridCellSize;
@@ -191,36 +205,25 @@ namespace HarmonyGridSystem.Utils
                 visual.GetComponent<Renderer>().sharedMaterial = _settings.visualMaterial;
             }
 
-            if (_settings.createGridVisualization)
+            if (_settings.createGridVisualization && _settings.objectType != PlacedObjectType.FloorObject && _settings.objectType != PlacedObjectType.WallObject)
             {
-                CreateGridCubes(parent.transform, bounds);
+                CreateGridCubes(parent.transform, target.transform, bounds);
             }
 
-            PlacedObjectSO objectSO = null;
+            placedObject = null;
             if (_settings.generateScriptableObject)
             {
-                objectSO = GenerateSO(parent, new Vector2Int(occupiedGridCellsX, occupiedGridCellsZ));
+                placedObject = GenerateSO(parent, new Vector2Int(occupiedGridCellsX, occupiedGridCellsZ));
             }
             else
             {
                 childHolder.SetSOValues(width, depth, target.name, $"{_settings.prefabSavePath}/Visuals", _settings.prefabSavePath, _settings.objectType);
             }
 
-            if (_settings.generatePrefab)
-            {
-                Utilities.CreatePrefab(parent, _settings.prefabSavePath, parent.name, true);
-                if (objectSO) objectSO.prefab = parent.transform;
-            }
-
-            if(objectSO) EditorUtility.SetDirty(objectSO);
-
-            AssetDatabase.SaveAssets();
-            AssetDatabase.Refresh();
-
             // Add components
             components.ForEach(c => parent.AddComponent(c));
 
-            return parent;
+            return parent.transform;
         }
 
 
@@ -241,7 +244,7 @@ namespace HarmonyGridSystem.Utils
         {
             Mesh meshBounds = target.GetComponent<MeshFilter>().sharedMesh;
             return meshBounds.bounds;
-            
+
         }
 
         private PlacedObjectSO GenerateSO(GameObject target, Vector2Int occupiedGridCells)
@@ -296,36 +299,13 @@ namespace HarmonyGridSystem.Utils
             }
         }
 
-        //private void CreateFloorCubeGrids(GameObject target, Transform Parent, int occupiedGridCellsX, int occupiedGridCellsZ)
-        //{
-        //    List<GameObject> list = new();
-
-        //    //Creates the Ground Grids for the Mesh
-        //    for (int x = 0; x < occupiedGridCellsX; x++)
-        //    {
-        //        for (int z = 0; z < occupiedGridCellsZ; z++)
-        //        {
-        //            Vector3 cubePosition = new Vector3(x, 0, z) * _settings.gridCellSize;
-        //            GameObject cube = Instantiate(_settings.cubePrefab);
-
-        //            cube.transform.localScale = new Vector3(_settings.gridCellSize, 0.1f, _settings.gridCellSize);
-        //            cube.transform.position = target.transform.position + cubePosition;
-        //            cube.transform.forward = target.transform.forward;
-        //            cube.transform.SetParent(Parent.transform);
-        //            list.Add(cube);
-        //        }
-        //    }
-
-        //    ChildHolder childHolder = Parent.GetComponent<ChildHolder>();
-        //    childHolder.CreateCube(list);
-        //    childHolder.TurnOffCubes();
-
-        //}
-
-        private void CreateGridCubes(Transform parent, Bounds bounds)
+        private void CreateGridCubes(Transform parent, Transform target, Bounds bounds)
         {
             var gridParent = new GameObject("GridCubes").transform;
-            gridParent.SetParent(parent);
+            gridParent.localPosition = Vector3.zero;
+            gridParent.localRotation = Quaternion.identity;
+            gridParent.localScale = Vector3.one;
+            gridParent.SetParent(parent, true);
 
             int xCells = Mathf.CeilToInt(bounds.size.x / _settings.gridCellSize);
             int zCells = Mathf.CeilToInt(bounds.size.z / _settings.gridCellSize);
@@ -334,57 +314,86 @@ namespace HarmonyGridSystem.Utils
             {
                 for (int z = 0; z < zCells; z++)
                 {
-                    var cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                    cube.transform.SetParent(gridParent);
-                    cube.transform.localPosition = new Vector3(
-                        x * _settings.gridCellSize + _settings.gridCellSize / 2,
-                        _settings.yOffset,
-                        z * _settings.gridCellSize + _settings.gridCellSize / 2
-                    );
-                    cube.transform.localScale = new Vector3(
-                        _settings.gridCellSize - 0.1f,
-                        0.1f,
-                        _settings.gridCellSize - 0.1f
-                    );
+                    Vector3 cubePosition = new Vector3(x, 0, z) * _settings.gridCellSize;
+                    var cube = Instantiate(_settings.cubePrefab);
+                    if (cube == null) cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
+
+                    cube.transform.localScale = new Vector3(_settings.gridCellSize, 0.1f, _settings.gridCellSize);
+                    cube.transform.position = target.position + cubePosition;
+                    cube.transform.forward = target.forward;
+
+                    cube.transform.SetParent(gridParent, true);
                 }
             }
         }
 
         private void CreateEdgePositions(Transform parent, Bounds bounds)
         {
+            // Create a parent object for the edges
             var edges = new GameObject("EdgePositions").transform;
+            edges.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
+            edges.localScale = Vector3.one;
+            edges.SetParent(parent, true);
+
+            // Debug logs for bounds and parent position
+            Debug.Log($"Bounds Size: {bounds.size}");
+            Debug.Log($"Parent Local Position: {parent.GetComponent<ChildHolder>().OriginalMesh.transform.localPosition}");
+
+            // List to store edge positions
             List<FloorEdgePosition> edgePositionsList = new List<FloorEdgePosition>();
-            edges.SetParent(parent);
 
-            float currentRot = 0;
-            float currentX = -bounds.size.x;
-            float currentZ = bounds.size.z + 1.5f;
+            // Calculate half sizes for positioning
+            float halfWidth = bounds.size.x / 2f;
+            float halfDepth = bounds.size.z / 2f;
+            Transform targetObject = parent.GetComponent<ChildHolder>().OriginalMesh.transform;
+            if (targetObject == null) Debug.LogError("No ChildHolder script or Cannot fild child element");
 
+            // Loop through 4 edges (one for each side)
             for (int i = 0; i < 4; i++)
             {
+                // Create a cube for the edge
                 var edge = GameObject.CreatePrimitive(PrimitiveType.Cube);
                 edge.name = $"Edge_{((EdgeType)i).ToString()}";
+                edge.transform.SetParent(parent);
                 edge.GetComponent<MeshRenderer>().enabled = false;
-                edge.transform.SetParent(edges);
-                edge.transform.rotation = Quaternion.Euler(new Vector3(0, currentRot, 0));
                 edge.layer = _settings.edgeLayer;
 
-                // Position calculation
-                currentX += bounds.size.x / 2;
-                currentZ -= bounds.size.z / 2;
-                float x = (currentRot == 0 || currentRot == 180) ? currentX : 0;
-                float z = (currentRot == 90 || currentRot == 270) ? currentZ : 0;
-                edge.transform.localPosition = new Vector3(x, 0f, z);
+                // Calculate position based on edge type
+                Vector3 edgePosition = Vector3.zero;
+                switch ((EdgeType)i)
+                {
+                    case EdgeType.Left:
+                        edgePosition = new Vector3(targetObject.localPosition.x, 0f, targetObject.localPosition.z + halfDepth);
+                        edge.transform.localRotation = Quaternion.Euler(0f, 90f, 0f);
+                        break;
+                    case EdgeType.Right:
+                        edgePosition = new Vector3(targetObject.localPosition.x, 0f, targetObject.localPosition.z - halfDepth);
+                        edge.transform.localRotation = Quaternion.Euler(0f, 90f, 0f);
+                        break;
+                    case EdgeType.Up:
+                        edgePosition = new Vector3(targetObject.localPosition.x - halfWidth, 0f, targetObject.localPosition.z);
+                        edge.transform.localRotation = Quaternion.Euler(0f, 0f, 0f);
+                        break;
+                    case EdgeType.Down:
+                        edgePosition = new Vector3(targetObject.localPosition.x + halfWidth, 0f, targetObject.localPosition.z);
+                        edge.transform.localRotation = Quaternion.Euler(0f, 0f, 0f);
+                        break;
+                }
 
-                // Scale
-                edge.transform.localScale = new Vector3(_settings.edgeSize.x, _settings.edgeSize.y, bounds.size.z);
+                // Set edge position
+                edge.transform.localPosition = edgePosition;
 
-                // Add component and set edge type
+                // Set edge scale
+                edge.transform.localScale = new Vector3(
+                    _settings.edgeSize.x,
+                    _settings.edgeSize.y,
+                    (i < 2) ? bounds.size.z : bounds.size.x // Adjust scale based on edge type
+                );
+
+                // Add FloorEdgePosition component and set edge type
                 var floorEdgePosition = edge.AddComponent<FloorEdgePosition>();
                 floorEdgePosition.SetEdge((EdgeType)i);
                 edgePositionsList.Add(floorEdgePosition);
-
-                currentRot += 90;
             }
 
             // Scale adjustment for the parent object (if needed)
@@ -398,8 +407,14 @@ namespace HarmonyGridSystem.Utils
                 );
             }
 
+            // Assign edge positions to the FloorPlacedObject component
             FloorPlacedObject floorPlacedObject = parent.GetComponent<FloorPlacedObject>();
-            floorPlacedObject.SetEdgePositions(edgePositionsList[0], edgePositionsList[2], edgePositionsList[1], edgePositionsList[3]);
+            floorPlacedObject.SetEdgePositions(
+                edgePositionsList[0], // Left
+                edgePositionsList[2], // Right
+                edgePositionsList[1], // Front
+                edgePositionsList[3]  // Back
+            );
         }
 
         private void SetLayerRecursively(GameObject obj, int layer)

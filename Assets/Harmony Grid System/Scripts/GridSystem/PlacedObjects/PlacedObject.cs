@@ -9,18 +9,8 @@ namespace HarmonyGridSystem.Objects
         private PlacedObjectSO placedObjectSO;
         private PlacedObjectSO.Dir dir;
         private Vector2Int origin;
-        [SerializeField] private int gridWidth;
-        [SerializeField] private int gridHeight;
 
-        public int Width => gridWidth;
-        public int Height => gridHeight;
         public PlacedObjectSO PlacedObjectSOValue => placedObjectSO;
-
-        public void Initialize(int width, int height)
-        {
-            gridWidth = width;
-            gridHeight = height;
-        }
 
         public PlacedObjectType placedObjectType
         {

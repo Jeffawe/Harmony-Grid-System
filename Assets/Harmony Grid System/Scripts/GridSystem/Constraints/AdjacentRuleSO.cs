@@ -3,7 +3,7 @@ using UnityEngine;
 namespace HarmonyGridSystem.Objects
 {
 
-    [CreateAssetMenu(fileName = "AdjacencyRule", menuName = "Grid System/Constraints/Adjacency Rule")]
+    [CreateAssetMenu(fileName = "AdjacencyRule", menuName = "Harmony Grid System/Constraints/Adjacency Rule")]
     public class AdjacencyRuleSO : ConstraintRuleSO
     {
         public override bool NoDoubleCalls { get; protected set; } = true;

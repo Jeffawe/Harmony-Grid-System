@@ -80,10 +80,15 @@ namespace HarmonyGridSystem.Utils
             prefab = PrefabUtility.SaveAsPrefabAssetAndConnect(prefabRoot, assetPath, InteractionMode.UserAction, out bool prefabSuccess);
             AssetDatabase.SaveAssets();
 
-            // Destroy the temporary root GameObject
-            if (deleteGameObject) Object.Destroy(prefabRoot);
 
-            if (prefabSuccess) Debug.Log("Prefab created at Assets/MyPrefab.prefab");
+            if (prefabSuccess)
+            {
+                // Destroy the temporary root GameObject
+                if (deleteGameObject) Object.DestroyImmediate(prefabRoot);
+
+                Debug.Log("Prefab created at Assets/MyPrefab.prefab");
+            }
+
             return prefab;
         }
 
@@ -111,7 +116,7 @@ namespace HarmonyGridSystem.Utils
             AssetDatabase.SaveAssets();
 
             return newMaterial;
-            
+
         }
 
         public static GameObject GetPrefab(string nameOfFolder, string nameOfPrefab)
@@ -187,7 +192,7 @@ namespace HarmonyGridSystem.Utils
 
                 // Save the ScriptableObject as an asset in the project
                 AssetDatabase.CreateAsset(myScriptableObject, assetPath);
-                
+
 
                 // Optional: Refresh the Unity Editor to see the changes immediately
                 EditorUtility.SetDirty(myScriptableObject);
