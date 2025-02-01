@@ -11,7 +11,6 @@ namespace HarmonyGridSystem.Objects
         public string nameString;
         public string constraintGroupName;
         public string PrefabPath;
-        public string VisualPath;
         public Transform prefab;
         public Transform visual;
         public PlacedObjectType placedObjectType;
@@ -32,12 +31,29 @@ namespace HarmonyGridSystem.Objects
             {
                 if (prefab == null)
                 {
+                    // Load the prefab if it doesn't exist
                     GameObject newPrefab = Utilities.GetPrefab(PrefabPath, this.name);
                     if (newPrefab == null) return prefab;
                     else
-                        return newPrefab.transform;
+                    {
+                        prefab = newPrefab.transform;
+                    }
                 }
-                else return prefab;
+
+                // Enable all children of Prefab except "Visual"
+                foreach (Transform child in prefab)
+                {
+                    if (child.name == "Visual")
+                    {
+                        child.gameObject.SetActive(false); // Turn off Visual
+                    }
+                    else
+                    {
+                        child.gameObject.SetActive(true); // Turn on all other children
+                    }
+                }
+
+                return prefab;
             }
         }
 
@@ -45,14 +61,16 @@ namespace HarmonyGridSystem.Objects
         {
             get
             {
-                if (!hasVisual) return Prefab;
-                if (visual == null)
+                // Disable all children of Prefab except "Visual" and "GridCubes"
+                foreach (Transform child in Prefab)
                 {
-                    GameObject newVisual = Utilities.GetPrefab(VisualPath, $"{this.name}_visual");
-                    if (newVisual == null) return Prefab;
-                    else return newVisual.transform;
+                    if (child.name != "Visual" && child.name != "GridCubes")
+                    {
+                        child.gameObject.SetActive(false);
+                    }
                 }
-                else return Prefab;
+
+                return Prefab;
             }
         }
 

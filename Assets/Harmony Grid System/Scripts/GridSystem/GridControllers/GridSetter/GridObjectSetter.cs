@@ -159,8 +159,6 @@ namespace HarmonyGridSystem.Utils
                         list.Add(cube);
                     }
                 }
-
-                Parent.GetComponent<ChildHolder>().CreateCube(list);
             }
 
             float positionX;
@@ -220,7 +218,7 @@ namespace HarmonyGridSystem.Utils
 
             CreateAndSetSO(building, newObject, Parent, Parent2);
 
-            while (string.IsNullOrEmpty(building.PrefabPath) || string.IsNullOrEmpty(building.VisualPath))
+            while (string.IsNullOrEmpty(building.PrefabPath))
             {
                 CreateAndSetSO(building, newObject, Parent, Parent2);
             }
@@ -399,7 +397,6 @@ namespace HarmonyGridSystem.Utils
             building.height = occupiedGridCellsZ;
             building.nameString = newObject.name;
             building.PrefabPath = PrefabPath;
-            building.VisualPath = VisualPath;
             building.placedObjectType = gameObjectType;
             Utilities.CreatePrefab(Parent.gameObject, PrefabPath, newObject.name, true);
 

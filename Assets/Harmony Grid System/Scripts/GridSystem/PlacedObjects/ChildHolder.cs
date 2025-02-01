@@ -14,7 +14,7 @@ namespace HarmonyGridSystem.Objects
         public string PrefabPath;
         public PlacedObjectType placedObjectType;
 
-        public SOValues (int width, int height, string nameString, string visualPath, string prefabPath, PlacedObjectType placedObjectType)
+        public SOValues(int width, int height, string nameString, string visualPath, string prefabPath, PlacedObjectType placedObjectType)
         {
             this.width = width;
             this.height = height;
@@ -32,7 +32,7 @@ namespace HarmonyGridSystem.Objects
         [SerializeField] PlacedObjectType placedObjectType;
         [SerializeField] PlacedObjectSO placedObjectSO;
         [SerializeField] GameObject child;
-        private List<GameObject> groundCubes;
+        private Transform groundCube;
 
         public PlacedObjectType _placedObjectType => placedObjectType;
         public PlacedObjectSO _placedObjectSO => placedObjectSO;
@@ -56,6 +56,7 @@ namespace HarmonyGridSystem.Objects
             sOValues.VisualPath = visualPath;
             sOValues.PrefabPath = prefabPath;
             sOValues.placedObjectType = placedObjectType;
+            this.placedObjectType = placedObjectType;
         }
 
         public Vector3 GetChildLocation()
@@ -79,24 +80,20 @@ namespace HarmonyGridSystem.Objects
             child = gameObject;
         }
 
-        public void CreateCube(List<GameObject> gameObjectList)
+        public void CreateCube(Transform gameObject)
         {
-            groundCubes = gameObjectList;
+            groundCube = gameObject;
         }
 
         public void TurnOffCubes()
         {
-            if (groundCubes.Count <= 0) return;
-            foreach (var item in groundCubes)
-            {
-                item.SetActive(false);
-            }
+            groundCube.gameObject.SetActive(false);
         }
 
         void OnDrawGizmos()
         {
             Gizmos.color = Color.yellow;
-            Gizmos.DrawWireSphere(transform.position, 0.5f);
+            Gizmos.DrawCube(transform.position, Vector3.one * 0.1f);
         }
     }
 }

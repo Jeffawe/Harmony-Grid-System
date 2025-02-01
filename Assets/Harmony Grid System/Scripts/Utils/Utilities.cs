@@ -84,7 +84,7 @@ namespace HarmonyGridSystem.Utils
             if (prefabSuccess)
             {
                 // Destroy the temporary root GameObject
-                if (deleteGameObject) Object.DestroyImmediate(prefabRoot);
+                if (deleteGameObject) Object.Destroy(prefabRoot);
 
                 Debug.Log("Prefab created at Assets/MyPrefab.prefab");
             }
