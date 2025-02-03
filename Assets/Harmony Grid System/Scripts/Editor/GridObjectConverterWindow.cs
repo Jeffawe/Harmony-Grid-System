@@ -106,6 +106,9 @@ namespace HarmonyGridSystem.Utils
                     case PlacedObjectType.LooseObject:
                         CreateLooseObject(target, originalName);
                         break;
+                    case PlacedObjectType.ZoneObject:
+                        CreateZoneObject(target, originalName);
+                        break;
                 }
             }
             catch (System.Exception e)
@@ -123,6 +126,17 @@ namespace HarmonyGridSystem.Utils
             GeneratePrefab(parent.gameObject, placedObjectSO);
         }
 
+        private void CreateZoneObject(GameObject target, string name)
+        {
+            PlacedObjectSO placedObjectSO = null;
+            if (_settings.generateScriptableObject)
+            {
+                placedObjectSO = GenerateSO(target, new Vector2Int(0, 0), false);
+            }
+
+            if (_settings.generatePrefab) GeneratePrefab(target, placedObjectSO);
+        }
+
         private void CreateFloorObject(GameObject target, string name)
         {
             var parent = CreateBaseObject(target, name, new List<System.Type> { typeof(FloorPlacedObject) }, out PlacedObjectSO placedObjectSO);
@@ -130,14 +144,14 @@ namespace HarmonyGridSystem.Utils
 
             // Edge markers
             CreateEdgePositions(parent, bounds);
-            GeneratePrefab(parent.gameObject, placedObjectSO);
+            if (_settings.generatePrefab) GeneratePrefab(parent.gameObject, placedObjectSO);
         }
 
         private void CreateWallObject(GameObject target, string name)
         {
             var parent = CreateBaseObject(target, name, new List<System.Type> { typeof(FloorEdgeObject) }, out PlacedObjectSO placedObjectSO, true);
 
-            GeneratePrefab(parent.gameObject, placedObjectSO);
+            if (_settings.generatePrefab) GeneratePrefab(parent.gameObject, placedObjectSO);
         }
 
         private void CreateLooseObject(GameObject target, string name)
@@ -145,7 +159,7 @@ namespace HarmonyGridSystem.Utils
             var parent = CreateBaseObject(target, name, new List<System.Type> { typeof(PlacedObject) }, out PlacedObjectSO placedObjectSO);
             SetLayerRecursively(parent.gameObject, _settings.looseObjectLayer);
 
-            GeneratePrefab(parent.gameObject, placedObjectSO);
+            if (_settings.generatePrefab) GeneratePrefab(parent.gameObject, placedObjectSO);
         }
 
         private Transform CreateBaseObject(GameObject target, string name, List<System.Type> components, out PlacedObjectSO placedObject, bool isWall = false)
@@ -160,7 +174,8 @@ namespace HarmonyGridSystem.Utils
             int occupiedGridCellsX = (Mathf.RoundToInt(width / gridCellSize) == 0) ? 1 : Mathf.RoundToInt(width / gridCellSize);
             int occupiedGridCellsZ = (Mathf.RoundToInt(depth / gridCellSize) == 0) ? 1 : Mathf.RoundToInt(depth / gridCellSize);
 
-            //Vector3 offset = new Vector3(parent.transform.localScale.x / 2, 0, parent.transform.localScale.z / 2);
+            int calculatedCells = Mathf.RoundToInt(Mathf.CeilToInt(bounds.size.y) / _settings.gridHeight);
+            int occupiedGridCellsY = calculatedCells == 0 ? 1 : calculatedCells;
 
             // Calculate grid-based position
             float positionX = isWall ? 0 : gridCellSize * (occupiedGridCellsX - 1);
@@ -177,8 +192,6 @@ namespace HarmonyGridSystem.Utils
             // Position the parent object at the pivot point
             parent.transform.position = target.transform.position - pivotPoint;
             target.transform.position = parent.transform.position + pivotPoint + new Vector3(0, _settings.yOffset, 0);
-            //target.transform.position = target.transform.position + new Vector3(positionX / 2, 0 + _settings.yOffset, positionZ / 2);
-            //parent.transform.position = target.transform.position + pivotPoint - offset;
             target.transform.SetParent(parent.transform, true);
             parent.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
 
@@ -201,12 +214,12 @@ namespace HarmonyGridSystem.Utils
             placedObject = null;
             if (_settings.generateScriptableObject)
             {
-                placedObject = GenerateSO(parent, new Vector2Int(occupiedGridCellsX, occupiedGridCellsZ), isVisual);
+                placedObject = GenerateSO(parent, new Vector2Int(occupiedGridCellsX, occupiedGridCellsZ), isVisual, occupiedGridCellsY);
                 childHolder.SetSO(placedObject);
             }
             else
             {
-                childHolder.SetSOValues(occupiedGridCellsX, occupiedGridCellsZ, target.name, isVisual, _settings.prefabSavePath, _settings.objectType);
+                childHolder.SetSOValues(occupiedGridCellsX, occupiedGridCellsZ, occupiedGridCellsY, target.name, isVisual, _settings.prefabSavePath, _settings.objectType);
             }
 
             components.ForEach(c => parent.AddComponent(c));
@@ -235,16 +248,18 @@ namespace HarmonyGridSystem.Utils
 
         }
 
-        private PlacedObjectSO GenerateSO(GameObject target, Vector2Int occupiedGridCells, bool isVisual)
+        private PlacedObjectSO GenerateSO(GameObject target, Vector2Int occupiedGridCells, bool isVisual, int height = 0)
         {
             PlacedObjectSO building = Utilities.CreateNewScriptableObject<PlacedObjectSO>(target.name);
 
             building.width = occupiedGridCells.x;
-            building.height = occupiedGridCells.y;
+            building.breadth = occupiedGridCells.y;
             building.nameString = target.name;
             building.PrefabPath = _settings.prefabSavePath;
             building.placedObjectType = _settings.objectType;
             building.hasVisual = isVisual;
+            building.height = height;
+            if (building.height > 1) building.isMultiple = true;
             Utilities.CreatePrefab(target, _settings.prefabSavePath, target.name, true);
 
             return building;
@@ -479,6 +494,14 @@ namespace HarmonyGridSystem.Utils
                 EditorGUILayout.PropertyField(_serializedObject.FindProperty("prefabSavePath"));
             }
 
+            var generatePrefabProp2 = _serializedObject.FindProperty("isMultiple");
+            EditorGUILayout.PropertyField(generatePrefabProp2);
+
+            if (generatePrefabProp2.boolValue)
+            {
+                EditorGUILayout.PropertyField(_serializedObject.FindProperty("gridHeight"));
+            }
+
             EditorGUILayout.PropertyField(_serializedObject.FindProperty("generateScriptableObject"));
             EditorGUILayout.Space();
         }
@@ -489,11 +512,8 @@ namespace HarmonyGridSystem.Utils
 
             switch (_settings.objectType)
             {
-                case PlacedObjectType.WallObject:
-                    EditorGUILayout.PropertyField(_serializedObject.FindProperty("edgeLayer"));
-                    break;
-
                 case PlacedObjectType.FloorObject:
+                    EditorGUILayout.PropertyField(_serializedObject.FindProperty("edgeLayer"));
                     EditorGUILayout.PropertyField(_serializedObject.FindProperty("edgeSize"));
                     break;
 

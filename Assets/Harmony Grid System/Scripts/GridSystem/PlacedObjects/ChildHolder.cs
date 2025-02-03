@@ -8,7 +8,9 @@ namespace HarmonyGridSystem.Objects
     public class SOValues
     {
         public int width;
+        public int breadth;
         public int height;
+        public bool isMultiple;
         public string nameString;
         public bool isVisual;
         public string PrefabPath;
@@ -38,10 +40,12 @@ namespace HarmonyGridSystem.Objects
             }
         }
 
-        public void SetSOValues(int width, int height, string nameString, bool isVisual, string prefabPath, PlacedObjectType placedObjectType)
+        public void SetSOValues(int width, int breadth, int height, string nameString, bool isVisual, string prefabPath, PlacedObjectType placedObjectType)
         {
             sOValues.width = width;
+            sOValues.breadth = breadth;
             sOValues.height = height;
+            if (sOValues.height > 1) sOValues.isMultiple = true;
             sOValues.nameString = nameString;
             sOValues.isVisual = isVisual;
             sOValues.PrefabPath = prefabPath;

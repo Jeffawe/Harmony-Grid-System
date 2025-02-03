@@ -15,6 +15,8 @@ namespace HarmonyGridSystem.Utils
         public string prefabSavePath = "Assets/Prefabs/GridObjects";
         public bool generatePrefab;
         public bool generateScriptableObject;
+        public bool isMultiple;
+        public int gridHeight;
 
         [Header("Visual Settings")]
         public bool createVisualPrefab = true;

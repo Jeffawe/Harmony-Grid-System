@@ -78,8 +78,17 @@ namespace HarmonyGridSystem.Objects
         }
 
         public int width;
+        public int breadth;
         public int height;
 
+        public bool isMultiple { get; set; }
+
+        public int gridStartHeightPoint { get; private set; } = 0;
+
+        public void SetGridHeightStartPoint(int gridStartHeightPoint)
+        {
+            this.gridStartHeightPoint = gridStartHeightPoint;
+        }
 
         public List<Vector2Int> GetGridPosition(Vector2Int offset, Dir dir)
         {
@@ -87,7 +96,7 @@ namespace HarmonyGridSystem.Objects
 
             for (int x = 0; x < width; x++)
             {
-                for (int z = 0; z < height; z++)
+                for (int z = 0; z < breadth; z++)
                 {
                     gridPositions.Add(offset + new Vector2Int(x, z));
                 }
@@ -100,7 +109,7 @@ namespace HarmonyGridSystem.Objects
                 case Dir.Up:
                     for (int x = 0; x < width; x++)
                     {
-                        for (int z = 0; z < height; z++)
+                        for (int z = 0; z < breadth; z++)
                         {
                             gridPositions.Add(offset + new Vector2Int(x, z));
                         }
@@ -109,7 +118,7 @@ namespace HarmonyGridSystem.Objects
 
                 case Dir.Left:
                 case Dir.Right:
-                    for (int x = 0; x < height; x++)
+                    for (int x = 0; x < breadth; x++)
                     {
                         for (int z = 0; z < width; z++)
                         {
@@ -120,6 +129,23 @@ namespace HarmonyGridSystem.Objects
             }
 
             return gridPositions;
+        }
+
+        public List<Vector2Int>[] GetMultipleGridPositionsOptimized(Vector2Int offset, Dir dir)
+        {
+            // Preallocate the array to avoid multiple allocations
+            List<Vector2Int>[] multiLevelGridPositions = new List<Vector2Int>[height];
+
+            for (int i = 0; i < height; i++)
+            {
+                // Calculate the actual level, starting from gridStartHeightPoint
+                int currentLevel = gridStartHeightPoint + i;
+
+                // Optional: You could modify offset based on level if needed
+                multiLevelGridPositions[i] = GetGridPosition(offset, dir);
+            }
+
+            return multiLevelGridPositions;
         }
 
         public Dir GetNextDir(Dir dir)
@@ -153,8 +179,8 @@ namespace HarmonyGridSystem.Objects
                 default:
                 case Dir.Down: return new Vector2Int(0, 0);
                 case Dir.Left: return new Vector2Int(0, width);
-                case Dir.Up: return new Vector2Int(width, height);
-                case Dir.Right: return new Vector2Int(height, 0);
+                case Dir.Up: return new Vector2Int(width, breadth);
+                case Dir.Right: return new Vector2Int(breadth, 0);
             }
         }
 

@@ -89,7 +89,6 @@ namespace HarmonyGridSystem.Grid
         private float looseObjectEulerY;
         private PlacedObjectSO.Dir currentDir = PlacedObjectSO.Dir.Down;
         private int currentGridIndex;
-        private bool isEditMode;
         private float floorYoffset;
 
         // Quick access property
@@ -292,43 +291,52 @@ namespace HarmonyGridSystem.Grid
                 return;
             }
 
-            if (!Application.isPlaying)
+            try
             {
-                if (placedObjectSO.placedObjectType == PlacedObjectType.WallObject)
+                if (!Application.isPlaying)
                 {
-                    PlaceWallObject(placedObjectSO, false, mousePos, EdgeType.Up, gridPos);
-                }
-                else if (placedObjectSO.placedObjectType == PlacedObjectType.LooseObject)
-                {
-                    PlaceLooseObject(placedObjectSO, false, mousePos, default, mousePos);
-                }
-                else if (placedObjectSO.placedObjectType == PlacedObjectType.ZoneObject)
-                {
-                    PlaceZoneObject(placedObjectSO, false, mousePos, false, gridPos);
+                    if (placedObjectSO.placedObjectType == PlacedObjectType.WallObject)
+                    {
+                        PlaceWallObject(placedObjectSO, false, mousePos, EdgeType.Up, gridPos);
+                    }
+                    else if (placedObjectSO.placedObjectType == PlacedObjectType.LooseObject)
+                    {
+                        PlaceLooseObject(placedObjectSO, false, mousePos, default, mousePos);
+                    }
+                    else if (placedObjectSO.placedObjectType == PlacedObjectType.ZoneObject)
+                    {
+                        PlaceZoneObject(placedObjectSO, false, mousePos, false, gridPos);
+                    }
+                    else
+                    {
+                        PlaceGridObject(placedObjectSO, false, mousePos, gridPos);
+                    }
                 }
                 else
                 {
-                    PlaceGridObject(placedObjectSO, false, mousePos, gridPos);
+                    if (placedObjectSO.placedObjectType == PlacedObjectType.WallObject)
+                    {
+                        PlaceWallObject(placedObjectSO, true, mousePos);
+                    }
+                    else if (placedObjectSO.placedObjectType == PlacedObjectType.LooseObject)
+                    {
+                        PlaceLooseObject(placedObjectSO, true, mousePos);
+                    }
+                    else if (placedObjectSO.placedObjectType == PlacedObjectType.ZoneObject)
+                    {
+                        PlaceZoneObject(placedObjectSO, true, mousePos, true);
+                    }
+                    else
+                    {
+                        PlaceGridObject(placedObjectSO, true, mousePos);
+                    }
                 }
+
+                placedObjectSO.SetGridHeightStartPoint(currentGridIndex);
             }
-            else
+            catch (Exception e)
             {
-                if (placedObjectSO.placedObjectType == PlacedObjectType.WallObject)
-                {
-                    PlaceWallObject(placedObjectSO, true, mousePos);
-                }
-                else if (placedObjectSO.placedObjectType == PlacedObjectType.LooseObject)
-                {
-                    PlaceLooseObject(placedObjectSO, true, mousePos);
-                }
-                else if (placedObjectSO.placedObjectType == PlacedObjectType.ZoneObject)
-                {
-                    PlaceZoneObject(placedObjectSO, true, mousePos, true);
-                }
-                else
-                {
-                    PlaceGridObject(placedObjectSO, true, mousePos);
-                }
+                Debug.LogError(e);
             }
         }
 
@@ -516,7 +524,7 @@ namespace HarmonyGridSystem.Grid
             if (!useMousePosition)
             {
                 GameObject originalObject = placedObjectSO.Prefab.GetComponent<ChildHolder>().OriginalMesh;
-                placedObjectSO.Prefab.GetComponent<ChildHolder>()?.SetSO(placedObjectSO);
+                placedObjectSO.Prefab.GetComponent<ChildHolder>().SetSO(placedObjectSO);
                 // Calculate the rotation needed to align the Y-axis with the target direction
                 Quaternion targetRotation = Quaternion.LookRotation(orientation, Vector3.up);
 
@@ -535,9 +543,9 @@ namespace HarmonyGridSystem.Grid
                 if (InputController.GetLeftMouseButton())
                 {
                     float yAxis = (currentGridIndex <= 0) ? 0 : gridManager.GridYSize * currentGridIndex;
-                    Vector3 _position = new Vector3(raycastHit.point.x, yAxis, raycastHit.point.z);
-                    Transform looseObjectTransform = Instantiate(placedObjectSO.Prefab, _position, Quaternion.Euler(0, looseObjectEulerY, 0));
-                    placedObjectSO.Prefab.GetComponent<ChildHolder>()?.SetSO(placedObjectSO);
+                    Vector3 _position = new(raycastHit.point.x, yAxis, raycastHit.point.z);
+                    _ = Instantiate(placedObjectSO.Prefab, _position, Quaternion.Euler(0, looseObjectEulerY, 0));
+                    placedObjectSO.Prefab.GetComponent<ChildHolder>().SetSO(placedObjectSO);
                     //Saving System
                     //looseObjectTransformList.Add(looseObjectTransform);
                 }
@@ -573,25 +581,128 @@ namespace HarmonyGridSystem.Grid
             Vector2Int placedObjectOrigin = new Vector2Int(x, z);
             placedObjectOrigin = grid.ValidateGridPosition(placedObjectOrigin);
 
-            List<Vector2Int> gridPositions = placedObjectSO.GetGridPosition(placedObjectOrigin, currentDir);
-
-            if (IsGridEmpty(gridPositions, placedObjectSO.placedObjectType))
+            if (placedObjectSO.isMultiple)
             {
-                Vector2Int rotationOffset = placedObjectSO.GetRotationOffset(currentDir);
-                floorYoffset = (placedObjectSO.placedObjectType == PlacedObjectType.FloorObject) ? floorYoffset = transform.localPosition.y + gridManager.FloorYOffset : transform.localPosition.y;
-
-                Vector3 placedWorldPos = grid.GetWorldPosition(placedObjectOrigin.x, placedObjectOrigin.y) + new Vector3(rotationOffset.x, floorYoffset / gridManager.CellSize, rotationOffset.y) * gridManager.CellSize;
-                PlacedObject placedObject = PlacedObject.Create(placedObjectSO, placedWorldPos, currentDir, placedObjectOrigin);
-
-                foreach (var position in gridPositions) grid.GetGridObject(position.x, position.y).SetPlacedObject(placedObject);
-                OnObjectPlaced?.Invoke(this, EventArgs.Empty);
-
-                if (Application.isPlaying) DeselectObjectType();
+                MultipleGridObjectPlacement(placedObjectOrigin, mousePos);
             }
             else
             {
+                SingleGridObjectPlacement(placedObjectOrigin, mousePos);
+            }
+        }
+
+        /// <summary>
+        /// Handles the placement of a multi-level grid object across multiple grid levels.
+        /// </summary>
+        /// <param name="placedObjectOrigin">The origin position of the object on the grid</param>
+        /// <param name="mousePos">The mouse position used for error messaging</param>
+        public void MultipleGridObjectPlacement(Vector2Int placedObjectOrigin, Vector3 mousePos)
+        {
+            try
+            {
+                List<Vector2Int>[] gridPositionsPerLevel = placedObjectSO.GetMultipleGridPositionsOptimized(placedObjectOrigin, currentDir);
+                bool canPlaceObject = true;
+                for (int level = 0; level < gridPositionsPerLevel.Length; level++)
+                {
+                    List<Vector2Int> gridPositions = gridPositionsPerLevel[level];
+
+                    if (!IsGridEmpty(gridPositions, placedObjectSO))
+                    {
+                        canPlaceObject = false;
+                        break;
+                    }
+                }
+
+                if (canPlaceObject)
+                {
+                    Vector2Int rotationOffset = placedObjectSO.GetRotationOffset(currentDir);
+
+                    // Determine Y offset based on object type
+                    float floorYoffset = (placedObjectSO.placedObjectType == PlacedObjectType.FloorObject)
+                        ? transform.localPosition.y + gridManager.FloorYOffset
+                        : transform.localPosition.y;
+
+                    placedObjectSO.SetGridHeightStartPoint(currentGridIndex);
+
+                    for (int level = 0; level < gridPositionsPerLevel.Length; level++)
+                    {
+                        List<Vector2Int> gridPositions = gridPositionsPerLevel[level];
+                        int index = level + currentGridIndex;
+
+                        // Calculate world position for this level
+                        Vector3 placedWorldPos = gridList[index].GetWorldPosition(placedObjectOrigin.x, placedObjectOrigin.y) +
+                            new Vector3(
+                                rotationOffset.x,
+                                (floorYoffset + (level * gridManager.CellSize)) / gridManager.CellSize,
+                                rotationOffset.y
+                            ) * gridManager.CellSize;
+
+                        // Create placed object
+                        PlacedObject placedObject = PlacedObject.Create(placedObjectSO, placedWorldPos, currentDir, placedObjectOrigin);
+
+                        // Set grid objects for this level
+                        foreach (var position in gridPositions)
+                        {
+                            gridList[index].GetGridObject(position.x, position.y).SetPlacedObject(placedObject);
+                        }
+                    }
+
+                    OnObjectPlaced?.Invoke(this, EventArgs.Empty);
+                    if (Application.isPlaying) DeselectObjectType();
+
+                }
+                else
+                {
+                    if (Application.isPlaying)
+                        UtilsClass.CreateWorldTextPopup("Cannot build here!", Utilities.GetMouseWorldPosition(mouseMask, mousePos));
+
+                    Debug.LogWarning("Cannot Build Here");
+                }
+            }
+            catch (Exception e)
+            {
+                if (Application.isPlaying)
+                    UtilsClass.CreateWorldTextPopup("Cannot build here!", Utilities.GetMouseWorldPosition(mouseMask, mousePos));
+
+                Debug.LogWarning(e);
+            }
+        }
+
+
+        /// <summary>
+        /// Handles the placement of a single-level grid object.
+        /// </summary>
+        /// <param name="placedObjectOrigin">The origin position of the object on the grid</param>
+        /// <param name="mousePos">The mouse position used for error messaging</param>
+        public void SingleGridObjectPlacement(Vector2Int placedObjectOrigin, Vector3 mousePos)
+        {
+            try
+            {
+                List<Vector2Int> gridPositions = placedObjectSO.GetGridPosition(placedObjectOrigin, currentDir);
+
+                if (IsGridEmpty(gridPositions, placedObjectSO))
+                {
+                    Vector2Int rotationOffset = placedObjectSO.GetRotationOffset(currentDir);
+                    floorYoffset = (placedObjectSO.placedObjectType == PlacedObjectType.FloorObject) ? floorYoffset = transform.localPosition.y + gridManager.FloorYOffset : transform.localPosition.y;
+
+                    Vector3 placedWorldPos = grid.GetWorldPosition(placedObjectOrigin.x, placedObjectOrigin.y) + new Vector3(rotationOffset.x, floorYoffset / gridManager.CellSize, rotationOffset.y) * gridManager.CellSize;
+                    PlacedObject placedObject = PlacedObject.Create(placedObjectSO, placedWorldPos, currentDir, placedObjectOrigin);
+
+                    foreach (var position in gridPositions) grid.GetGridObject(position.x, position.y).SetPlacedObject(placedObject);
+                    OnObjectPlaced?.Invoke(this, EventArgs.Empty);
+
+                    if (Application.isPlaying) DeselectObjectType();
+                }
+                else
+                {
+                    if (Application.isPlaying) UtilsClass.CreateWorldTextPopup("Cannot build here!", Utilities.GetMouseWorldPosition(mouseMask, mousePos));
+                    Debug.LogWarning("Cannot Build Here");
+                }
+            }
+            catch (Exception e)
+            {
                 if (Application.isPlaying) UtilsClass.CreateWorldTextPopup("Cannot build here!", Utilities.GetMouseWorldPosition(mouseMask, mousePos));
-                Debug.LogWarning("Cannot Build Here");
+                Debug.LogWarning(e);
             }
         }
 
@@ -600,14 +711,14 @@ namespace HarmonyGridSystem.Grid
         /// </summary>
         /// <param name="gridPositions">The List of positions to check</param>
         /// <returns>true if it is empty</returns>
-        public bool IsGridEmpty(List<Vector2Int> gridPositions, PlacedObjectType placedObjectType)
+        public bool IsGridEmpty(List<Vector2Int> gridPositions, PlacedObjectSO placedObjectSO)
         {
             foreach (Vector2Int position in gridPositions)
             {
                 var gridObject = grid.GetGridObject(position.x, position.y);
 
                 // If the grid cell is occupied or cannot accept the object type, return false
-                if (!gridObject.CanBuild(placedObjectType))
+                if (!gridObject.CanBuild(placedObjectSO.placedObjectType))
                 {
                     return false;
                 }
@@ -618,7 +729,6 @@ namespace HarmonyGridSystem.Grid
                     return false;
                 }
             }
-
 
             return true;
         }
