@@ -119,7 +119,6 @@ namespace HarmonyGridSystem.Utils
         private void CreateGridObject(GameObject target, string name)
         {
             var parent = CreateBaseObject(target, name, new List<System.Type> { typeof(PlacedObject) }, out PlacedObjectSO placedObjectSO);
-            var bounds = GetRenderBounds(target);
 
             GeneratePrefab(parent.gameObject, placedObjectSO);
         }
@@ -137,7 +136,6 @@ namespace HarmonyGridSystem.Utils
         private void CreateWallObject(GameObject target, string name)
         {
             var parent = CreateBaseObject(target, name, new List<System.Type> { typeof(FloorEdgeObject) }, out PlacedObjectSO placedObjectSO, true);
-            var bounds = GetRenderBounds(target);
 
             GeneratePrefab(parent.gameObject, placedObjectSO);
         }
@@ -153,8 +151,8 @@ namespace HarmonyGridSystem.Utils
         private Transform CreateBaseObject(GameObject target, string name, List<System.Type> components, out PlacedObjectSO placedObject, bool isWall = false)
         {
             var parent = new GameObject($"{name}_{_settings.objectType}");
-            parent.transform.position = Vector3.zero;
-            parent.transform.rotation = Quaternion.identity;
+            parent.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
+            target.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
             var bounds = GetRenderBounds(target);
             int width = Mathf.CeilToInt(bounds.size.x);
             int depth = Mathf.CeilToInt(bounds.size.z);
@@ -162,7 +160,7 @@ namespace HarmonyGridSystem.Utils
             int occupiedGridCellsX = (Mathf.RoundToInt(width / gridCellSize) == 0) ? 1 : Mathf.RoundToInt(width / gridCellSize);
             int occupiedGridCellsZ = (Mathf.RoundToInt(depth / gridCellSize) == 0) ? 1 : Mathf.RoundToInt(depth / gridCellSize);
 
-            Vector3 offset = new Vector3(parent.transform.localScale.x / 2, 0, parent.transform.localScale.z / 2);
+            //Vector3 offset = new Vector3(parent.transform.localScale.x / 2, 0, parent.transform.localScale.z / 2);
 
             // Calculate grid-based position
             float positionX = isWall ? 0 : gridCellSize * (occupiedGridCellsX - 1);
@@ -181,32 +179,34 @@ namespace HarmonyGridSystem.Utils
             target.transform.position = parent.transform.position + pivotPoint + new Vector3(0, _settings.yOffset, 0);
             //target.transform.position = target.transform.position + new Vector3(positionX / 2, 0 + _settings.yOffset, positionZ / 2);
             //parent.transform.position = target.transform.position + pivotPoint - offset;
-            target.transform.SetParent(parent.transform);
+            target.transform.SetParent(parent.transform, true);
+            parent.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
 
-            // Visual part
+            bool isVisual = false;
             if (_settings.createVisualPrefab)
             {
-                var visual = Instantiate(target, parent.transform);
+                var visual = Instantiate(target, parent.transform, true);
                 visual.name = "Visual";
-                visual.transform.localPosition = -pivotPoint + offset;  // Use same offset as target
+                visual.transform.position = parent.transform.position + pivotPoint + new Vector3(0, _settings.yOffset, 0);
                 if (_settings.visualMaterial) visual.GetComponent<Renderer>().sharedMaterial = _settings.visualMaterial;
+                isVisual = true;
             }
 
             if (_settings.createGridVisualization && _settings.objectType != PlacedObjectType.WallObject)
             {
-                CreateGridCubes(parent.transform, target.transform, bounds, out Transform transforms);
+                CreateGridCubes(parent.transform, target.transform, bounds, occupiedGridCellsX, occupiedGridCellsZ, out Transform transforms);
                 childHolder.CreateCube(transforms);
             }
 
             placedObject = null;
             if (_settings.generateScriptableObject)
             {
-                placedObject = GenerateSO(parent, new Vector2Int(occupiedGridCellsX, occupiedGridCellsZ));
+                placedObject = GenerateSO(parent, new Vector2Int(occupiedGridCellsX, occupiedGridCellsZ), isVisual);
                 childHolder.SetSO(placedObject);
             }
             else
             {
-                childHolder.SetSOValues(width, depth, target.name, $"{_settings.prefabSavePath}/Visuals", _settings.prefabSavePath, _settings.objectType);
+                childHolder.SetSOValues(occupiedGridCellsX, occupiedGridCellsZ, target.name, isVisual, _settings.prefabSavePath, _settings.objectType);
             }
 
             components.ForEach(c => parent.AddComponent(c));
@@ -235,7 +235,7 @@ namespace HarmonyGridSystem.Utils
 
         }
 
-        private PlacedObjectSO GenerateSO(GameObject target, Vector2Int occupiedGridCells)
+        private PlacedObjectSO GenerateSO(GameObject target, Vector2Int occupiedGridCells, bool isVisual)
         {
             PlacedObjectSO building = Utilities.CreateNewScriptableObject<PlacedObjectSO>(target.name);
 
@@ -244,7 +244,7 @@ namespace HarmonyGridSystem.Utils
             building.nameString = target.name;
             building.PrefabPath = _settings.prefabSavePath;
             building.placedObjectType = _settings.objectType;
-            building.hasVisual = false;
+            building.hasVisual = isVisual;
             Utilities.CreatePrefab(target, _settings.prefabSavePath, target.name, true);
 
             return building;
@@ -267,36 +267,37 @@ namespace HarmonyGridSystem.Utils
         private Vector3 SetPivotPoint(PivotPoint pivotPoint, int occupiedGridCellsX, int occupiedGridCellsZ)
         {
             int gridCellSize = _settings.gridCellSize;
-            float halfGridCellSize = gridCellSize / 2f;
+            float halfGridCellSizeX = (occupiedGridCellsX * gridCellSize) / 2f;
+            float halfGridCellSizeZ = (occupiedGridCellsZ * gridCellSize) / 2f;
 
-            float pivotX = 0f;
-            float pivotZ = 0f;
+            float pivotX;
+            float pivotZ;
 
             switch (pivotPoint)
             {
                 case PivotPoint.Center:
-                    pivotX = (occupiedGridCellsX * gridCellSize) / 2f - halfGridCellSize;
-                    pivotZ = (occupiedGridCellsZ * gridCellSize) / 2f - halfGridCellSize;
+                    pivotX = 0;
+                    pivotZ = 0;
                     break;
 
                 case PivotPoint.TopRight:
-                    pivotX = -halfGridCellSize;
-                    pivotZ = -halfGridCellSize;
+                    pivotX = -halfGridCellSizeX;
+                    pivotZ = -halfGridCellSizeZ;
                     break;
 
                 case PivotPoint.TopLeft:
-                    pivotX = (occupiedGridCellsX * gridCellSize) - halfGridCellSize;
-                    pivotZ = -halfGridCellSize;
+                    pivotX = +halfGridCellSizeX;
+                    pivotZ = -halfGridCellSizeZ;
                     break;
 
                 case PivotPoint.BottomRight:
-                    pivotX = -halfGridCellSize;
-                    pivotZ = (occupiedGridCellsZ * gridCellSize) - halfGridCellSize;
+                    pivotX = -halfGridCellSizeX;
+                    pivotZ = +halfGridCellSizeZ;
                     break;
 
                 case PivotPoint.BottomLeft:
-                    pivotX = (occupiedGridCellsX * gridCellSize) - halfGridCellSize;
-                    pivotZ = (occupiedGridCellsZ * gridCellSize) - halfGridCellSize;
+                    pivotX = +halfGridCellSizeX;
+                    pivotZ = +halfGridCellSizeZ;
                     break;
 
                 default:
@@ -308,19 +309,14 @@ namespace HarmonyGridSystem.Utils
             return new Vector3(pivotX, 0f, pivotZ);
         }
 
-        private void CreateGridCubes(Transform parent, Transform target, Bounds bounds, out Transform transforms)
+        private void CreateGridCubes(Transform parent, Transform target, Bounds bounds, int xCells, int zCells, out Transform transforms)
         {
             // Create a parent object for the grid cubes
             var gridParent = new GameObject("GridCubes").transform;
-            gridParent.localPosition = Vector3.zero;
-            gridParent.localRotation = Quaternion.identity;
+            gridParent.SetParent(parent);
+            gridParent.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
             gridParent.localScale = Vector3.one;
-            gridParent.SetParent(parent, true);
             transforms = gridParent.transform;
-
-            // Calculate the number of grid cells the object spans
-            int xCells = Mathf.CeilToInt(bounds.size.x / _settings.gridCellSize);
-            int zCells = Mathf.CeilToInt(bounds.size.z / _settings.gridCellSize);
 
             // Calculate the starting position of the grid cubes
             Vector3 startPosition = target.position - new Vector3(

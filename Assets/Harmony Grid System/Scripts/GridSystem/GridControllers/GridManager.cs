@@ -68,7 +68,8 @@ namespace HarmonyGridSystem.Grid
         FloorObject,
         GridObject,
         WallObject,
-        LooseObject
+        LooseObject,
+        ZoneObject
     }
 
     public enum PivotPoint

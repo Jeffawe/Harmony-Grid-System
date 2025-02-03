@@ -61,12 +61,15 @@ namespace HarmonyGridSystem.Objects
         {
             get
             {
-                // Disable all children of Prefab except "Visual" and "GridCubes"
-                foreach (Transform child in Prefab)
+                if (hasVisual)
                 {
-                    if (child.name != "Visual" && child.name != "GridCubes")
+                    // Disable all children of Prefab except "Visual" and "GridCubes"
+                    foreach (Transform child in Prefab)
                     {
-                        child.gameObject.SetActive(false);
+                        if (child.name != "Visual" && child.name != "GridCubes")
+                        {
+                            child.gameObject.SetActive(false);
+                        }
                     }
                 }
 

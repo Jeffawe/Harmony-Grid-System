@@ -302,6 +302,10 @@ namespace HarmonyGridSystem.Grid
                 {
                     PlaceLooseObject(placedObjectSO, false, mousePos, default, mousePos);
                 }
+                else if (placedObjectSO.placedObjectType == PlacedObjectType.ZoneObject)
+                {
+                    PlaceZoneObject(placedObjectSO, false, mousePos, false, gridPos);
+                }
                 else
                 {
                     PlaceGridObject(placedObjectSO, false, mousePos, gridPos);
@@ -316,6 +320,10 @@ namespace HarmonyGridSystem.Grid
                 else if (placedObjectSO.placedObjectType == PlacedObjectType.LooseObject)
                 {
                     PlaceLooseObject(placedObjectSO, true, mousePos);
+                }
+                else if (placedObjectSO.placedObjectType == PlacedObjectType.ZoneObject)
+                {
+                    PlaceZoneObject(placedObjectSO, true, mousePos, true);
                 }
                 else
                 {
@@ -364,22 +372,135 @@ namespace HarmonyGridSystem.Grid
         /// <param name="Edge"></param>
         public void CheckParent(Transform Object, FloorEdgePosition Edge)
         {
-            if (Object.parent.TryGetComponent(out FloorPlacedObject floorPlacedObject))
-            {
-                // Found parent FloorPlacedObject
-                if (placedObjectSO != null)
+            CheckParent<FloorPlacedObject>(
+                Object,
+                Edge,
+                (floorPlacedObject, data) =>
                 {
-                    // Place Object on Edge
-                    floorPlacedObject.PlaceEdge(Edge.edge, placedObjectSO);
+                    var edge = (FloorEdgePosition)data;
+                    if (placedObjectSO != null)
+                    {
+                        floorPlacedObject.PlaceEdge(edge.edge, placedObjectSO);
+                    }
+                }
+            );
+        }
+
+        /// <summary>
+        /// Generic recursive parent checker that accepts a component type and callback action
+        /// </summary>
+        /// <typeparam name="T">The component type to search for in parent objects</typeparam>
+        /// <param name="currentObject">The starting Transform to check from</param>
+        /// <param name="data">Optional data to pass to the callback function</param>
+        /// <param name="onComponentFound">Callback action to execute when component is found</param>
+        public void CheckParent<T>(Transform currentObject, object data, Action<T, object> onComponentFound) where T : Component
+        {
+            if (currentObject.parent != null && currentObject.parent.TryGetComponent(out T component))
+            {
+                // Found parent component of type T
+                onComponentFound?.Invoke(component, data);
+            }
+            else
+            {
+                if (currentObject.parent != null)
+                {
+                    CheckParent<T>(currentObject.parent, data, onComponentFound);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Places an object in a PlacementZone based on the provided parameters.
+        /// </summary>
+        /// <param name="placedObjectSO">The Scriptable Object containing data about the object to be placed.</param>
+        /// <param name="useMousePosition">If true, uses the mouse position to determine placement. If false, uses the provided grid position.</param>
+        /// <param name="mousePos">The position of the mouse (used if useMousePosition is true).</param>
+        /// <param name="isEditor">If this is called In Editor or runtime.</param>
+        /// <param name="gridPosition">The grid position of the object (used if useMousePosition is false).</param>
+        public void PlaceZoneObject(PlacedObjectSO placedObjectSO, bool useMousePosition, Vector3 mousePos, bool isEditor, Vector2Int gridPosition = default)
+        {
+            // Validate the Scriptable Object
+            if (placedObjectSO == null)
+            {
+                Debug.LogError("PlacedObjectSO is null. Cannot place object.");
+                return;
+            }
+
+            // Find the PlacementZone based on the placement method
+            PlacementZone placementZone = null;
+            if (useMousePosition)
+            {
+                // Use mouse position to find the PlacementZone
+                Ray ray = Camera.main.ScreenPointToRay(mousePos);
+                if (Physics.Raycast(ray, out RaycastHit raycastHit, 999f))
+                {
+                    // Try getting component directly
+                    if (raycastHit.collider.TryGetComponent(out placementZone))
+                    {
+                        Debug.Log("PlacementZone found at mouse position.");
+                    }
+                    // If not found, check children
+                    else if (raycastHit.collider.GetComponentInChildren<PlacementZone>() is PlacementZone childZone)
+                    {
+                        placementZone = childZone;
+                        Debug.Log("PlacementZone found in children.");
+                    }
+                    // If still not found, check parents
+                    else if (raycastHit.collider.GetComponentInParent<PlacementZone>() is PlacementZone parentZone)
+                    {
+                        placementZone = parentZone;
+                        Debug.Log("PlacementZone found in parent.");
+                    }
                 }
             }
             else
             {
-                if (Object.parent != null)
+                // Use grid position to find the PlacementZone
+                placementZone = FindPlacementZoneAtGridPosition(gridPosition);
+                if (placementZone != null)
                 {
-                    CheckParent(Object.parent, Edge);
+                    Debug.Log("PlacementZone found at grid position.");
                 }
             }
+
+            // If no PlacementZone is found, log a warning and exit
+            if (placementZone == null)
+            {
+                Debug.LogWarning("No valid PlacementZone found.");
+                return;
+            }
+
+
+            // Instantiate the object to be placed
+            GameObject objectToPlace = Instantiate(placedObjectSO.Prefab.gameObject);
+            if (objectToPlace == null)
+            {
+                Debug.LogError("Failed to instantiate object from PlacedObjectSO.");
+                return;
+            }
+
+
+            // Check if the object can be placed in the zone
+            if (!placementZone.CanPlaceObject(objectToPlace))
+            {
+                Debug.LogWarning("Object cannot be placed in the selected PlacementZone.");
+                if (isEditor) DestroyImmediate(objectToPlace); else Destroy(objectToPlace);
+                return;
+            }
+
+            // Place the object in the zone
+            placementZone.PlaceObject(objectToPlace);
+
+        }
+
+        /// <summary>
+        /// Finds a PlacementZone at the specified grid position.
+        /// </summary>
+        /// <param name="gridPosition">The grid position to search for a PlacementZone.</param>
+        /// <returns>The PlacementZone at the grid position, or null if none is found.</returns>
+        private PlacementZone FindPlacementZoneAtGridPosition(Vector2Int gridPosition)
+        {
+            return null;
         }
 
         /// <summary>
@@ -509,6 +630,7 @@ namespace HarmonyGridSystem.Grid
         /// <param name="position">The position where the object is being placed.</param>
         /// <param name="placedObjectSO">The ScriptableObject containing the details of the object being placed.</param>
         /// <returns>True if the placement respects all constraints; false if any constraint is violated.</returns>
+
         private bool CheckPlacementConstraints(Vector2Int position, PlacedObjectSO placedObjectSO)
         {
             Vector2Int[] adjacentPositions = new Vector2Int[]

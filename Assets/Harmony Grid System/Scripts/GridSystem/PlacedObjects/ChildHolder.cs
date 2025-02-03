@@ -10,19 +10,9 @@ namespace HarmonyGridSystem.Objects
         public int width;
         public int height;
         public string nameString;
-        public string VisualPath;
+        public bool isVisual;
         public string PrefabPath;
         public PlacedObjectType placedObjectType;
-
-        public SOValues(int width, int height, string nameString, string visualPath, string prefabPath, PlacedObjectType placedObjectType)
-        {
-            this.width = width;
-            this.height = height;
-            this.nameString = nameString;
-            VisualPath = visualPath;
-            PrefabPath = prefabPath;
-            this.placedObjectType = placedObjectType;
-        }
     }
 
 
@@ -48,12 +38,12 @@ namespace HarmonyGridSystem.Objects
             }
         }
 
-        public void SetSOValues(int width, int height, string nameString, string visualPath, string prefabPath, PlacedObjectType placedObjectType)
+        public void SetSOValues(int width, int height, string nameString, bool isVisual, string prefabPath, PlacedObjectType placedObjectType)
         {
             sOValues.width = width;
             sOValues.height = height;
             sOValues.nameString = nameString;
-            sOValues.VisualPath = visualPath;
+            sOValues.isVisual = isVisual;
             sOValues.PrefabPath = prefabPath;
             sOValues.placedObjectType = placedObjectType;
             this.placedObjectType = placedObjectType;
@@ -93,7 +83,7 @@ namespace HarmonyGridSystem.Objects
         void OnDrawGizmos()
         {
             Gizmos.color = Color.yellow;
-            Gizmos.DrawCube(transform.position, Vector3.one * 0.1f);
+            Gizmos.DrawCube(transform.position, Vector3.one * 1f);
         }
     }
 }
