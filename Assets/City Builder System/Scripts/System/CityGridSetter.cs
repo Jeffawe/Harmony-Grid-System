@@ -1,125 +1,257 @@
-using System.Collections.Generic;
 using UnityEngine;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using Newtonsoft.Json;
 using HarmonyGridSystem.Objects;
 
 namespace HarmonyGridSystem.Builder
 {
-    public class CityGridSetter : MonoBehaviour
+    [Serializable]
+    public class Position
     {
-        public int GridSize = 10;
+        public float x;
+        public float y;
+    }
 
-        public int GridWidth;
-        public int GridHeight;
+    [Serializable]
+    public class JsonObject
+    {
+        public string name;
+        public string text;
+        public Position position;
+        public float width;
+        public float height;
+        public int direction;
+    }
 
-        // Pre-allocated grid for efficient placement
-        private PlacedObjectSO[,] occupiedGrids;
+    public class GridObj
+    {
+        public string name;
+        public int width;
+        public int height;
+        public int direction;
+        public int x;
+        public int y;
 
-        // Start is called before the first frame update
-        void Start()
+        public GridObj(string name, int width, int height, int direction, int x, int y)
         {
-            // Initialize occupiedGrids array
-            occupiedGrids = new PlacedObjectSO[GridWidth, GridHeight];
-        }
-
-        public void ConstructGrid(BuildingBlock[] buildingBlocks)
-        {
-            foreach (var buildingBlock in buildingBlocks)
-            {
-                List<Vector2Int> elementGrids = GetElementGrids(buildingBlock.GetPosition(), buildingBlock.GetSO());
-
-                for (int i = 0; i < elementGrids.Count; i++)
-                {
-                    Vector2Int grid = elementGrids[i];
-                    if (occupiedGrids[grid.x, grid.y] != null)
-                    {
-                        while (occupiedGrids[grid.x, grid.y] != null)
-                        {
-                            grid.x++;
-                        }
-                    }
-
-                    occupiedGrids[elementGrids[i].x, elementGrids[i].y] = buildingBlock.GetSO();
-                }
-            }
-        }
-
-        private List<Vector2Int> GetElementGrids(Vector2 paperPosition, PlacedObjectSO objectSO)
-        {
-            List<Vector2Int> grids = new List<Vector2Int>();
-            Vector2Int gridStartingPosition = GetGridPosition(paperPosition);
-            Vector2Int ElementWH = GetMeshWidthAndHeight(objectSO);
-
-            for (int x = 0; x < ElementWH.x; x++)
-            {
-                for (int y = 0; y < ElementWH.y; y++)
-                {
-                    // Calculate offset within the element's grid position
-                    Vector2Int offset = new Vector2Int(x, y);
-
-                    // Calculate absolute grid position
-                    Vector2Int absoluteGrid = gridStartingPosition + offset;
-
-                    ExpandGrid(absoluteGrid);
-
-                    grids.Add(absoluteGrid);
-                }
-            }
-
-            return grids;
-        }
-
-        private Vector2Int GetGridPosition(Vector2 paperPosition)
-        {
-            // Normalize position within the smaller grid
-            float normalizedX = paperPosition.x / GridSize;
-            float normalizedY = paperPosition.y / GridSize;
-
-            // Calculate grid indices (0-based)
-            int gridX = Mathf.FloorToInt(normalizedX);
-            int gridY = Mathf.FloorToInt(normalizedY);
-
-            return new Vector2Int(gridX, gridY);
-        }
-
-        private Vector2Int GetMeshWidthAndHeight(PlacedObjectSO objectSO)
-        {
-            return new Vector2Int(objectSO.width, objectSO.height);
-        }
-
-        private void ExpandGrid(Vector2Int expandGrid)
-        {
-            if (expandGrid.x > GridWidth)
-            {
-                occupiedGrids = new PlacedObjectSO[expandGrid.x, GridHeight];
-            }
-
-            if (expandGrid.y > GridWidth)
-            {
-                occupiedGrids = new PlacedObjectSO[GridWidth, expandGrid.y];
-            }
-
+            this.name = name;
+            this.width = width;
+            this.height = height;
+            this.direction = direction;
+            this.x = x;
+            this.y = y;
         }
     }
 
-    public class BuildingBlock
+    public class CityGridSetter : MonoBehaviour
     {
-        private Vector2Int position;
-        private PlacedObjectSO objectSO;
+        private HashSet<Vector2Int> occupiedPositions = new HashSet<Vector2Int>();
+        private int gridWidth;
+        private int gridHeight;
 
-        public BuildingBlock(Vector2Int _position, PlacedObjectSO _SO)
+        public bool ArrangeGridObj(Vector2Int gridWH, int cellSize, TextAsset jsonFile, LookUpTable lookUpTable, out List<GridObj> results)
         {
-            this.position = _position;
-            this.objectSO = _SO;
+            gridWidth = gridWH.x;
+            gridHeight = gridWH.y;
+            results = new List<GridObj>();
+            try
+            {
+                if (jsonFile != null)
+                {
+                    results = ProcessLayoutJson(jsonFile.text, cellSize, lookUpTable);
+                    return true;
+                }
+                else
+                {
+                    Debug.LogError("No JSON file assigned to GridSystem!");
+                    return false;
+                }
+            }
+            catch (Exception e)
+            {
+                Debug.LogError(e);
+                return false;
+            }
+
         }
 
-        public Vector2Int GetPosition()
+        public List<GridObj> ProcessLayoutJson(string jsonData, float cellSize, LookUpTable lookUpTable)
         {
-            return position;
+            JsonObject[] objects = JsonConvert.DeserializeObject<JsonObject[]>(jsonData);
+
+            // Get paper/original dimensions
+            JsonObject original = objects[0];
+            float paperWidth = original.width;
+            float paperHeight = original.height;
+
+            // Calculate grid dimensions based on cell size
+            gridWidth = Mathf.CeilToInt(paperWidth / cellSize);
+            gridHeight = Mathf.CeilToInt(paperHeight / cellSize);
+
+            // Convert remaining objects to GridObj and calculate initial grid positions
+            List<GridObj> gridObjects = new List<GridObj>();
+            for (int i = 1; i < objects.Length; i++)
+            {
+                JsonObject obj = objects[i];
+
+                // Convert world position to grid position
+                int gridX = Mathf.FloorToInt(obj.position.x);
+                int gridY = Mathf.FloorToInt(obj.position.y);
+
+                // Get PlacedObjectSO from lookup table
+                PlacedObjectSO placedObj = lookUpTable.GetSO(obj.text.ToLower());
+
+                // Default to 1,1 if no object found
+                int width = placedObj != null ? placedObj.width : 1;
+                int height = placedObj != null ? placedObj.height : 1;
+
+                gridObjects.Add(new GridObj(
+                    obj.name,
+                    width,
+                    height,
+                    obj.direction,
+                    gridX,
+                    gridY
+                ));
+            }
+
+            return OptimizeLayout(gridObjects);
         }
 
-        public PlacedObjectSO GetSO()
+        private List<GridObj> OptimizeLayout(List<GridObj> objects)
         {
-            return objectSO;
+            // Sort objects by area (larger first) and then by original position
+            var sortedObjects = objects.OrderByDescending(o => o.width * o.height)
+                                     .ThenBy(o => o.y)
+                                     .ThenBy(o => o.x)
+                                     .ToList();
+
+            occupiedPositions.Clear();
+            List<GridObj> finalObjects = new List<GridObj>();
+
+            foreach (var obj in sortedObjects)
+            {
+                Vector2Int bestPosition = FindBestPosition(obj);
+
+                // Create new GridObj with optimized position
+                var optimizedObj = new GridObj(
+                    obj.name,
+                    obj.width,
+                    obj.height,
+                    obj.direction,
+                    bestPosition.x,
+                    bestPosition.y
+                );
+
+                // Mark positions as occupied
+                for (int x = bestPosition.x; x < bestPosition.x + obj.width; x++)
+                {
+                    for (int y = bestPosition.y; y < bestPosition.y + obj.height; y++)
+                    {
+                        occupiedPositions.Add(new Vector2Int(x, y));
+                    }
+                }
+
+                finalObjects.Add(optimizedObj);
+            }
+
+            return finalObjects;
+        }
+
+        private Vector2Int FindBestPosition(GridObj obj)
+        {
+            var originalPos = new Vector2Int(obj.x, obj.y);
+            var queue = new PriorityQueue<Vector2Int, float>();
+            queue.Enqueue(originalPos, 0);
+
+            var seen = new HashSet<Vector2Int>();
+
+            while (queue.Count > 0)
+            {
+                Vector2Int currentPos = queue.Dequeue();
+
+                if (seen.Contains(currentPos))
+                    continue;
+
+                seen.Add(currentPos);
+
+                if (IsPositionValid(obj, currentPos))
+                {
+                    return currentPos;
+                }
+
+                // Try adjacent positions
+                Vector2Int[] directions = new[]
+                {
+                new Vector2Int(1, 0),
+                new Vector2Int(0, 1),
+                new Vector2Int(-1, 0),
+                new Vector2Int(0, -1)
+            };
+
+                foreach (var dir in directions)
+                {
+                    Vector2Int newPos = currentPos + dir;
+                    if (!seen.Contains(newPos))
+                    {
+                        float priority = Vector2Int.Distance(originalPos, newPos);
+                        queue.Enqueue(newPos, priority);
+                    }
+                }
+            }
+
+            return originalPos; // Fallback to original position if no valid position found
+        }
+
+        private bool IsPositionValid(GridObj obj, Vector2Int position)
+        {
+            // Check grid boundaries
+            if (position.x < 0 || position.y < 0 ||
+                position.x + obj.width > gridWidth ||
+                position.y + obj.height > gridHeight)
+            {
+                return false;
+            }
+
+            // Check for overlaps
+            for (int x = position.x; x < position.x + obj.width; x++)
+            {
+                for (int y = position.y; y < position.y + obj.height; y++)
+                {
+                    if (occupiedPositions.Contains(new Vector2Int(x, y)))
+                    {
+                        return false;
+                    }
+                }
+            }
+
+            return true;
+        }
+    }
+
+    // Simple priority queue implementation
+    public class PriorityQueue<T, TPriority> where TPriority : IComparable<TPriority>
+    {
+        private List<(T item, TPriority priority)> elements = new List<(T, TPriority)>();
+
+        public int Count => elements.Count;
+
+        public void Enqueue(T item, TPriority priority)
+        {
+            elements.Add((item, priority));
+            elements.Sort((a, b) => a.priority.CompareTo(b.priority));
+        }
+
+        public T Dequeue()
+        {
+            if (elements.Count == 0)
+                throw new InvalidOperationException("Queue is empty");
+
+            T item = elements[0].item;
+            elements.RemoveAt(0);
+            return item;
         }
     }
 }

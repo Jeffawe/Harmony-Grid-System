@@ -174,8 +174,12 @@ namespace HarmonyGridSystem.Utils
             int occupiedGridCellsX = (Mathf.RoundToInt(width / gridCellSize) == 0) ? 1 : Mathf.RoundToInt(width / gridCellSize);
             int occupiedGridCellsZ = (Mathf.RoundToInt(depth / gridCellSize) == 0) ? 1 : Mathf.RoundToInt(depth / gridCellSize);
 
-            int calculatedCells = Mathf.RoundToInt(Mathf.CeilToInt(bounds.size.y) / _settings.gridHeight);
-            int occupiedGridCellsY = calculatedCells == 0 ? 1 : calculatedCells;
+            int occupiedGridCellsY = 0;
+            if (_settings.isMultiple && _settings.gridHeight > 0)
+            {
+                int calculatedCells = Mathf.RoundToInt(Mathf.CeilToInt(bounds.size.y) / _settings.gridHeight);
+                occupiedGridCellsY = calculatedCells == 0 ? 1 : calculatedCells;
+            }
 
             // Calculate grid-based position
             float positionX = isWall ? 0 : gridCellSize * (occupiedGridCellsX - 1);

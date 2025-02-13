@@ -1,44 +1,57 @@
 using HarmonyGridSystem.Grid;
 using HarmonyGridSystem.Objects;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace HarmonyGridSystem.Builder
 {
+    [RequireComponent(typeof(CityGridSetter))]
     public class ObjectCreator : MonoBehaviour
     {
         [SerializeField] GridBuildingSystem3D gridBuilder;
-        [SerializeField] PlacedObjectSO floorObject;
+        [SerializeField] PlacedObjectSO defaultFloorObject;
         [SerializeField] CreationType creationType;
 
         [SerializeField] int width;
         [SerializeField] int height;
+        [SerializeField] private TextAsset jsonFile;
+        [SerializeField] private int cellSize = 100;
+        [SerializeField] private LookUpTable lookUpTable;
+
+        private CityGridSetter gridSetter;
+        private List<GridObj> gridObjects;
 
         // Start is called before the first frame update
         void Start()
         {
+            gridSetter = GetComponent<CityGridSetter>();
             if (creationType == CreationType.Building) CreateFloor(width, height);
+
+            bool success = gridSetter.ArrangeGridObj(new Vector2Int(width, height), cellSize, jsonFile, lookUpTable, out gridObjects);
+
+            if(success)
+            {
+                PlaceObjectDown();
+            }
         }
 
-        /// <summary>
-        /// Places an Object on the Grid (For Building types only)
-        /// </summary>
-        /// <param name="objectToPlace">The SO of the object to place</param>
-        /// <param name="orientation">The Orientation of the Object</param>
-        /// <param name="xVector">the x axis of the object</param>
-        /// <param name="yVector">the y axis f the object</param>
-        /// <param name="maxX">the width of the page</param>
-        /// <param name="maxY">th height of the page</param>
-        public void PlaceObjectDown(PlacedObjectSO objectToPlace, float orientation, int xVector, int yVector, int maxX, int maxY)
+
+        public void PlaceObjectDown()
         {
-            int newX = ScaleDownValue(xVector, maxX, width);
-            int newY = ScaleDownValue(yVector, maxY, height);
-
-            PlaceDownLooseObject(objectToPlace, orientation, newX, newY);
-        }
-
-        public void PlaceBuildingDown()
-        {
-
+            for (int i = 0; i < gridObjects.Count; i++)
+            {
+                PlacedObjectSO so = lookUpTable.GetSO(gridObjects[i].name.ToLower());
+                if (so == null) continue;
+                
+                if(creationType == CreationType.Building)
+                {
+                    gridBuilder.PlaceGridObject(so, false, InputController.GetMousePosition(), new Vector2Int(gridObjects[i].x, gridObjects[i].y));
+                }
+                else
+                {
+                    PlaceDownLooseObject(so, gridObjects[i].direction, gridObjects[i].x, gridObjects[i].y);
+                }
+            }
         }
 
         /// <summary>
@@ -52,16 +65,9 @@ namespace HarmonyGridSystem.Builder
             {
                 for (int z = 0; z < height; z++)
                 {
-                    if (gridBuilder != null) gridBuilder.PlaceGridObject(floorObject, false, InputController.GetMousePosition(), new Vector2Int(x, z));
+                    if (gridBuilder != null) gridBuilder.PlaceGridObject(defaultFloorObject, false, InputController.GetMousePosition(), new Vector2Int(x, z));
                 }
             }
-        }
-
-        private int ScaleDownValue(float value, int previousMaxValue, int newMaxValue)
-        {
-            float newValue = value / previousMaxValue;
-            float finalValue = Mathf.Min(newValue * newMaxValue, newMaxValue);
-            return Mathf.RoundToInt(finalValue);
         }
 
         private void PlaceDownLooseObject(PlacedObjectSO objectToPlace, float orientation, int xValue, int yValue)
