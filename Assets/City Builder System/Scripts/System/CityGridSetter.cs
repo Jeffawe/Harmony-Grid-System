@@ -87,8 +87,8 @@ namespace HarmonyGridSystem.Builder
             float paperHeight = original.height;
 
             // Calculate grid dimensions based on cell size
-            gridWidth = Mathf.CeilToInt(paperWidth / cellSize);
-            gridHeight = Mathf.CeilToInt(paperHeight / cellSize);
+            //gridWidth = Mathf.CeilToInt(paperWidth / cellSize);
+            //gridHeight = Mathf.CeilToInt(paperHeight / cellSize);
 
             // Convert remaining objects to GridObj and calculate initial grid positions
             List<GridObj> gridObjects = new List<GridObj>();
@@ -97,8 +97,8 @@ namespace HarmonyGridSystem.Builder
                 JsonObject obj = objects[i];
 
                 // Convert world position to grid position
-                int gridX = Mathf.FloorToInt(obj.position.x);
-                int gridY = Mathf.FloorToInt(obj.position.y);
+                int gridX = Mathf.FloorToInt((obj.position.x / paperWidth) * gridWidth);
+                int gridY = Mathf.FloorToInt((obj.position.y / paperHeight) * gridHeight);
 
                 // Get PlacedObjectSO from lookup table
                 PlacedObjectSO placedObj = lookUpTable.GetSO(obj.text.ToLower());
